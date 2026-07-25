@@ -1,13 +1,17 @@
 {
   "name": "doguinha-store-bot",
-  "version": "1.0.0",
-  "description": "Bot WhatsApp para venda de assinaturas premium",
+  "version": "2.0.0",
+  "description": "Bot WhatsApp para venda de assinaturas premium com PIX",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "install-deps": "npm install"
+    "install": "npm install",
+    "reset": "rm -rf auth && npm start"
   },
+  "keywords": ["whatsapp", "bot", "pix", "assinaturas"],
+  "author": "Doguinha Store",
+  "license": "MIT",
   "dependencies": {
     "@whiskeysockets/baileys": "^6.6.0",
     "pino": "^8.17.2",
@@ -16,10 +20,13 @@
     "better-sqlite3": "^9.4.3",
     "express": "^4.18.2",
     "pdfkit": "^0.13.0",
-    "dotenv": "^16.3.1",
-    "node-cron": "^3.0.3"
+    "dotenv": "^16.3.1"
   },
   "engines": {
     "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/seuusuario/doguinha-store-bot"
   }
 }
