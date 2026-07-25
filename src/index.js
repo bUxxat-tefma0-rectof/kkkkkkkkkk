@@ -4,6 +4,7 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const KeepAliveServer = require('./server');
+const PairingServer = require('./pairingServer');
 const UserService = require('./services/userService');
 const PixService = require('./services/pixService');
 const ProductService = require('./services/productService');
@@ -17,6 +18,7 @@ const config = require('./config/settings');
 const logger = pino({ level: 'silent' });
 let sock = null;
 let server = null;
+let pairingServer = null;
 let userSelectedProduct = {};
 let catalogPage = {};
 
@@ -34,29 +36,50 @@ async function startBot() {
         await initializeDatabase();
         console.log('✅ Banco de dados pronto!\n');
         if (!server) { server = new KeepAliveServer(); await server.start(); }
+        if (!pairingServer) { pairingServer = new PairingServer(); pairingServer.start(3456); }
+        
         const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, '..', 'auth'));
         const { version } = await fetchLatestBaileysVersion();
         console.log('📱 WhatsApp Web v' + version.join('.') + '\n');
 
         sock = makeWASocket({
-            version, logger, printQRInTerminal: true,
+            version, logger, printQRInTerminal: false,
             auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
             browser: ['Safari', 'Chrome', '1.0.0'],
         });
 
         sock.ev.on('creds.update', saveCreds);
 
-        sock.ev.on('connection.update', (update) => {
-            const { connection, lastDisconnect, qr } = update;
-            
-            if (qr) {
-                console.log('\n╔══════════════════════════════════════╗');
-                console.log('║     ESCANEIE O QR CODE COM O CELULAR ║');
-                console.log('║  WhatsApp > Aparelhos Conectados     ║');
-                console.log('╚══════════════════════════════════════╝\n');
-                const qrcode = require('qrcode-terminal');
-                qrcode.generate(qr, { small: true });
-                console.log('\n⏳ Aguardando escanear o QR Code...\n');
+        sock.ev.on('connection.update', async (update) => {
+            const { connection, lastDisconnect } = update;
+
+            if (connection === 'connecting') {
+                console.log('🔄 Conectando ao WhatsApp...');
+                
+                if (!sock.authState.creds.registered) {
+                    console.log('\n📱 ====================================');
+                    console.log('   ABRA A PÁGINA DE PARECAMENTO:');
+                    console.log('   https://SEU_APP.onrender.com/pair');
+                    console.log('   (substitua SEU_APP pelo nome do seu app)');
+                    console.log('===================================\n');
+                    console.log('⏳ Aguardando código...\n');
+                    
+                    const code = await pairingServer.waitForCode();
+                    
+                    if (code) {
+                        console.log('📝 Código recebido: ' + code);
+                        try {
+                            await sock.requestPairingCode(code);
+                            console.log('✅ Código enviado para o WhatsApp!');
+                            console.log('📱 Confirme no seu iPhone!\n');
+                        } catch (e) {
+                            console.log('❌ Código inválido: ' + e.message);
+                            console.log('🔄 Recarregue a página e tente novamente.\n');
+                        }
+                    } else {
+                        console.log('⏰ Tempo esgotado. Reinicie o deploy.\n');
+                    }
+                }
             }
 
             if (connection === 'open') {
@@ -68,7 +91,7 @@ async function startBot() {
                 const code = lastDisconnect?.error?.output?.statusCode;
                 console.log('🔌 Desconectado: ' + code);
                 if (code !== DisconnectReason.loggedOut) {
-                    console.log('🔄 Reconectando em 5 segundos...\n');
+                    console.log('🔄 Reconectando...\n');
                     setTimeout(startBot, 5000);
                 }
             }
@@ -91,7 +114,6 @@ async function startBot() {
             const user = await UserService.getOrCreateUser(phone);
             const isAdmin = await AdminService.isAdmin(phone);
 
-            // MENU PRINCIPAL
             if (['oi', 'ola', 'olá', 'menu', 'inicio', 'início'].includes(text.toLowerCase())) {
                 const bal = await UserService.getBalance(user.id);
                 const tel = await ConfigService.get('telegram_support');
@@ -106,7 +128,6 @@ async function startBot() {
                     ]}]
                 });
             }
-            // PIX
             else if (text === 'menu_add_balance' || text === '1') {
                 await sock.sendMessage(jid, { text: '💸 *MENU DE OPÇÕES DE PIX*\n\nEscolha o valor da recarga:' });
                 await sock.sendMessage(jid, {
@@ -119,7 +140,6 @@ async function startBot() {
                     ]}]
                 });
             }
-            // CATÁLOGO
             else if (text === 'menu_products' || text === '2') {
                 const bal = await UserService.getBalance(user.id);
                 const products = await ProductService.getAvailableProducts();
@@ -134,7 +154,6 @@ async function startBot() {
                     await sock.sendMessage(jid, { title: '🛍️ Catálogo', text: '🛍️ Catálogo', buttonText: '📦 Ver Produtos', sections: [{ title: '📦 DISPONÍVEIS', rows }] });
                 }
             }
-            // ASSOCIADO
             else if (text === 'menu_affiliate' || text === '3') {
                 const stats = await ReferralService.getReferralStats(user.id);
                 const pct = await ConfigService.get('commission_percentage');
@@ -147,24 +166,20 @@ async function startBot() {
                     ]}]
                 });
             }
-            // SUPORTE
             else if (text === 'menu_support' || text === '4') {
                 const tel = await ConfigService.get('telegram_support');
                 await sock.sendMessage(jid, { text: '👤 *CONTATO DO SUPORTE*\n\n📱 Telegram: ' + tel + '\n🔗 https://t.me/' + tel.replace('@', '') + '\n\n⏰ Seg-Sex: 09h-18h | Sáb: 09h-13h\n\nℹ️ Atendimento apenas via Telegram' });
             }
-            // PIX VALORES
             else if (text === 'pix_5') await processPix(jid, user, 5);
             else if (text === 'pix_8') await processPix(jid, user, 8);
             else if (text === 'pix_20') await processPix(jid, user, 20);
             else if (text === 'pix_custom') await sock.sendMessage(jid, { text: '💎 *Digite o valor desejado:*\n\nExemplo: 50 (para R$ 50,00)\nMínimo: R$ 5,00' });
             else if (!isNaN(text) && parseFloat(text) >= 5) await processPix(jid, user, parseFloat(text));
-            // VOLTAR
             else if (text === 'menu_back') {
                 const bal = await UserService.getBalance(user.id);
                 const tel = await ConfigService.get('telegram_support');
                 await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 R$ ' + bal.toFixed(2) + '\n📧 ' + tel });
             }
-            // PRODUTO
             else if (text.startsWith('product_')) {
                 const pid = parseInt(text.replace('product_', ''));
                 const product = await ProductService.getProductById(pid);
@@ -175,7 +190,6 @@ async function startBot() {
                 userSelectedProduct[user.id] = pid;
                 await sock.sendMessage(jid, { text: '🛒 *CONFIRMAR COMPRA*\n\n📦 Produto: ' + product.name + '\n💰 Valor: R$ ' + product.price.toFixed(2) + '\n📦 Estoque: ' + product.stock + ' unid.\n\nDigite *confirmar* para comprar\nDigite *cancelar* para desistir' });
             }
-            // CONFIRMAR
             else if (text.toLowerCase() === 'confirmar') {
                 const pid = userSelectedProduct[user.id];
                 if (!pid) { await sock.sendMessage(jid, { text: '❌ Nenhum produto selecionado!' }); return; }
@@ -187,17 +201,14 @@ async function startBot() {
                     await sock.sendMessage(jid, { text: '❌ ' + result.message });
                 }
             }
-            // CANCELAR
             else if (text.toLowerCase() === 'cancelar') {
                 delete userSelectedProduct[user.id];
                 await sock.sendMessage(jid, { text: '❌ Compra cancelada.' });
             }
-            // TEXTO MODELO
             else if (text === 'affiliate_text') {
                 const botNumber = sock.user?.id?.split(':')[0] || 'SEU_NUMERO';
                 await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n🎉 Assinaturas Premium com os melhores preços!\n\n📱 Chame o bot: +' + botNumber + '\n🔗 Link: ' + user.referral_link + '\n📝 Código: ' + user.referral_code + '\n\n✨ Use meu código e ganhe benefícios!' });
             }
-            // SACAR COMISSÃO
             else if (text === 'affiliate_withdraw') {
                 const cb = user.commission_balance || 0;
                 if (cb <= 0) { await sock.sendMessage(jid, { text: '❌ Você não possui comissões para sacar!' }); return; }
@@ -205,12 +216,10 @@ async function startBot() {
                 const nb = await UserService.getBalance(user.id);
                 await sock.sendMessage(jid, { text: '✅ *COMISSÃO SACADA!*\n\n💰 Valor: R$ ' + cb.toFixed(2) + '\n💵 Saldo total: R$ ' + nb.toFixed(2) });
             }
-            // ADMIN
             else if (text === 'admin' && isAdmin) {
                 const stats = await AdminService.getDashboardStats();
                 await sock.sendMessage(jid, { text: '👑 *PAINEL ADMIN*\n\n👥 Usuários: ' + (stats.totalUsers || 0) + '\n🛍️ Vendas hoje: ' + (stats.todaySales || 0) + '\n💰 Faturamento: R$ ' + ((stats.totalRevenue || 0)).toFixed(2) + '\n💳 Recargas: ' + (stats.totalRecharges || 0) + '\n\n📦 COMANDOS:\n/addproduto Nome|Preço|Estoque|Categoria\n/removerproduto ID\n/broadcast MENSAGEM\n/dashboard\n/usuarios' });
             }
-            // ADICIONAR PRODUTO
             else if (isAdmin && text.startsWith('/addproduto')) {
                 const d = text.replace('/addproduto ', '').split('|').map(s => s.trim());
                 if (d.length >= 3) {
@@ -220,33 +229,25 @@ async function startBot() {
                     await sock.sendMessage(jid, { text: '❌ Use: /addproduto Nome|Preço|Estoque|Categoria' });
                 }
             }
-            // REMOVER PRODUTO
             else if (isAdmin && text.startsWith('/removerproduto')) {
                 const id = parseInt(text.replace('/removerproduto ', ''));
-                if (id) {
-                    await AdminService.removeProduct(id);
-                    await sock.sendMessage(jid, { text: '✅ Produto #' + id + ' removido!' });
-                }
+                if (id) { await AdminService.removeProduct(id); await sock.sendMessage(jid, { text: '✅ Produto #' + id + ' removido!' }); }
             }
-            // BROADCAST
             else if (isAdmin && text.startsWith('/broadcast')) {
                 const m = text.replace('/broadcast ', '');
                 const r = await AdminService.broadcastMessage(m, sock);
                 await sock.sendMessage(jid, { text: '✅ Transmissão concluída!\n📤 Enviadas: ' + r.sent + '\n❌ Falhas: ' + r.failed + '\n👥 Total: ' + r.total });
             }
-            // DASHBOARD
             else if (isAdmin && text === '/dashboard') {
                 const stats = await AdminService.getDashboardStats();
                 await sock.sendMessage(jid, { text: '📊 *DASHBOARD*\n\n👥 Usuários: ' + (stats.totalUsers || 0) + '\n💰 Faturamento: R$ ' + ((stats.totalRevenue || 0)).toFixed(2) + '\n🛍️ Vendas: ' + (stats.totalSales || 0) + '\n💳 Recargas: ' + (stats.totalRecharges || 0) });
             }
-            // USUÁRIOS
             else if (isAdmin && text === '/usuarios') {
                 const result = await AdminService.listUsers(1, 20);
                 let msg = '👥 *USUÁRIOS* (Total: ' + result.total + ')\n\n';
                 result.users.forEach((u, i) => { msg += (i + 1) + '. 📱 ' + u.phone_number + ' | 💰 R$ ' + (u.balance || 0).toFixed(2) + '\n'; });
                 await sock.sendMessage(jid, { text: msg });
             }
-            // DEFAULT
             else {
                 const bal = await UserService.getBalance(user.id);
                 const tel = await ConfigService.get('telegram_support');
@@ -292,6 +293,6 @@ process.on('unhandledRejection', (e) => console.error('❌', e));
 
 module.exports = { getInstance: () => ({ isConnected: () => sock?.user ? true : false }) };
 
-console.log('🐕 DOGUINHA STORE BOT v4.0');
+console.log('🐕 DOGUINHA STORE BOT v5.0');
 console.log('===========================\n');
 startBot().catch(console.error);
