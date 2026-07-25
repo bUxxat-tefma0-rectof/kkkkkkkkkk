@@ -82,40 +82,23 @@ async function startBot() {
 
             if (connection === 'connecting') {
                 console.log('🔄 Conectando ao WhatsApp...');
+            }
+
+            // MOSTRAR QR CODE NOS LOGS (você escaneia com iPhone)
+            if (qr) {
+                console.log('\n📱 ====================================');
+                console.log('   ESCANEIE O QR CODE COM SEU iPHONE');
+                console.log('====================================');
+                console.log('1. Abra o WhatsApp no iPhone');
+                console.log('2. Ajustes > Aparelhos Conectados');
+                console.log('3. Conectar um aparelho');
+                console.log('4. Aponte a câmera para o QR Code');
+                console.log('====================================\n');
                 
-                // Se não estiver registrado
-                if (!sock.authState.creds.registered) {
-                    console.log('\n📱 GERANDO CÓDIGO DE PARECAMENTO...\n');
-                    
-                    // Verificar se tem código no .env (código que VOCÊ vai digitar)
-                    const pairingCode = process.env.PAIRING_CODE;
-                    
-                    if (pairingCode && pairingCode.length >= 8) {
-                        console.log(`🔢 Usando código: ${pairingCode}`);
-                        console.log('⏳ Tentando conectar...\n');
-                        
-                        setTimeout(async () => {
-                            try {
-                                await sock.requestPairingCode(pairingCode);
-                                console.log('✅ Código enviado! Aguardando confirmação...\n');
-                            } catch (error) {
-                                console.log('❌ Erro:', error.message);
-                                console.log('📝 O código pode estar errado ou expirado.\n');
-                            }
-                        }, 2000);
-                    } else {
-                        // Se não tem código, mostrar QR Code como alternativa
-                        if (qr) {
-                            const qrcode = require('qrcode-terminal');
-                            console.log('\n📱 ALTERNATIVA - ESCANEIE O QR CODE:');
-                            qrcode.generate(qr, { small: true });
-                        }
-                        console.log('\n📝 PARA USAR CÓDIGO:');
-                        console.log('1. Adicione PAIRING_CODE no Environment do Render');
-                        console.log('2. O código é o número de 8 dígitos que seu iPhone pede');
-                        console.log('3. Exemplo: PAIRING_CODE=12345678\n');
-                    }
-                }
+                const qrcode = require('qrcode-terminal');
+                qrcode.generate(qr, { small: true });
+                
+                console.log('\n⏳ Aguardando scan do QR Code...\n');
             }
 
             if (connection === 'open') {
@@ -669,7 +652,7 @@ console.clear();
 console.log('🐕 DOGUINHA STORE BOT v3.0');
 console.log('===========================');
 console.log('✅ 100% COMPLETO');
-console.log('📱 Pareamento por código');
+console.log('📱 QR Code nos logs');
 console.log('🚀 Pronto para Render\n');
 
 startBot().catch(console.error);
