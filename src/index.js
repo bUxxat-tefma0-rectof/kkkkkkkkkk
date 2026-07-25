@@ -4,7 +4,6 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const KeepAliveServer = require('./server');
-const PairingServer = require('./pairingServer');
 const UserService = require('./services/userService');
 const PixService = require('./services/pixService');
 const ProductService = require('./services/productService');
@@ -18,7 +17,6 @@ const config = require('./config/settings');
 const logger = pino({ level: 'silent' });
 let sock = null;
 let server = null;
-let pairingServer = null;
 let userSelectedProduct = {};
 let catalogPage = {};
 
@@ -36,7 +34,6 @@ async function startBot() {
         await initializeDatabase();
         console.log('✅ Banco de dados pronto!\n');
         if (!server) { server = new KeepAliveServer(); await server.start(); }
-        if (!pairingServer) { pairingServer = new PairingServer(); pairingServer.start(3456); }
         
         const { state, saveCreds } = await useMultiFileAuthState(path.join(__dirname, '..', 'auth'));
         const { version } = await fetchLatestBaileysVersion();
@@ -60,11 +57,10 @@ async function startBot() {
                     console.log('\n📱 ====================================');
                     console.log('   ABRA A PÁGINA DE PARECAMENTO:');
                     console.log('   https://SEU_APP.onrender.com/pair');
-                    console.log('   (substitua SEU_APP pelo nome do seu app)');
                     console.log('===================================\n');
                     console.log('⏳ Aguardando código...\n');
                     
-                    const code = await pairingServer.waitForCode();
+                    const code = await server.waitForPairingCode();
                     
                     if (code) {
                         console.log('📝 Código recebido: ' + code);
