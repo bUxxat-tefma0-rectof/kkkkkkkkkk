@@ -1,29 +1,3 @@
-🔍 VERIFICAÇÃO FINAL - O QUE FALTA:
-
-✅ 1. "Mostrar Mais" no catálogo - JÁ FEITO!
-
-· index.js já tem navegação entre páginas
-· Botão "📄 Mostrar Mais Produtos"
-· Botão "⬅️ Página Anterior"
-
----
-
-✅ 2, 3, 4, 5, 6, 7, 8, 9 - JÁ CRIEI!
-
-· configService.js - Todas as funções
-· adminConfigHandler.js - Menu completo de configurações
-
----
-
-⚠️ MAS FALTA INTEGRAR NO INDEX.JS!
-
-Os arquivos existem mas não estão conectados no index.js principal. Vou criar o INDEX.JS FINAL com tudo integrado:
-
----
-
-📁 src/index.js - VERSÃO FINAL ABSOLUTA (100% COMPLETO)
-
-```javascript
 require('dotenv').config();
 
 const {
@@ -107,7 +81,6 @@ async function startBot() {
             defaultQueryTimeoutMs: 60000,
         });
 
-        // Inicializar handler de configurações
         adminConfigHandler = new AdminConfigHandler(sock);
 
         sock.ev.on('creds.update', saveCreds);
@@ -187,7 +160,6 @@ async function processMessage(msg, jid) {
     try {
         const phoneNumber = jid.replace('@s.whatsapp.net', '');
         
-        // Extrair texto da mensagem
         let text = '';
         if (msg.message.conversation) {
             text = msg.message.conversation;
@@ -207,99 +179,66 @@ async function processMessage(msg, jid) {
         const user = await UserService.getOrCreateUser(phoneNumber);
         const isAdmin = await AdminService.isAdmin(phoneNumber);
 
-        // ============ VERIFICAR SE ESTÁ AGUARDANDO CONFIGURAÇÃO ============
         if (global.awaitingConfig && global.awaitingConfig[jid]) {
             const configKey = global.awaitingConfig[jid];
             await adminConfigHandler.saveConfig(jid, configKey, text);
             return;
         }
 
-        // ============ COMANDOS ADMIN ============
         if (isAdmin && text.startsWith('/')) {
             await handleAdminCommand(jid, user, text);
             return;
         }
 
-        // ============ MENU PRINCIPAL ============
         if (['oi', 'ola', 'olá', 'menu', 'inicio', 'início', 'start'].includes(text.toLowerCase())) {
             await showMainMenu(jid, user);
         }
-
-        // ============ ADICIONAR SALDO ============
         else if (text === 'menu_add_balance' || text === '1') {
             await sock.sendMessage(jid, { text: await ConfigService.get('pix_menu_message') });
             await sendPixMenuList(jid);
         }
-
-        // ============ ASSINATURAS / CATÁLOGO ============
         else if (text === 'menu_products' || text === '2') {
             await showCatalog(jid, user);
         }
-
-        // ============ ÁREA DO ASSOCIADO ============
         else if (text === 'menu_affiliate' || text === '3') {
             await showAffiliateArea(jid, user);
         }
-
-        // ============ SUPORTE ============
         else if (text === 'menu_support' || text === '4') {
             const supportMsg = await ConfigService.get('support_message');
             await sock.sendMessage(jid, { text: supportMsg });
         }
-
-        // ============ PIX VALORES FIXOS ============
         else if (text === 'pix_5') await processPix(jid, user, 5);
         else if (text === 'pix_8') await processPix(jid, user, 8);
         else if (text === 'pix_20') await processPix(jid, user, 20);
-
-        // ============ PIX VALOR PERSONALIZADO ============
         else if (text === 'pix_custom') {
-            await sock.sendMessage(jid, { 
-                text: '💎 *Digite o valor desejado:*\n\n_Exemplo: 50 (para R$ 50,00)_\n_Mínimo: R$ 5,00_' 
-            });
+            await sock.sendMessage(jid, { text: '💎 *Digite o valor desejado:*\n\n_Exemplo: 50 (para R$ 50,00)_\n_Mínimo: R$ 5,00_' });
         }
-
-        // ============ VALOR NUMÉRICO (PIX) ============
         else if (!isNaN(text) && parseFloat(text) >= 5) {
             await processPix(jid, user, parseFloat(text));
         }
-
-        // ============ VOLTAR AO MENU ============
         else if (text === 'menu_back') {
             await showMainMenu(jid, user);
         }
-
-        // ============ CATÁLOGO - NAVEGAÇÃO ============
         else if (text.startsWith('catalog_page_')) {
             const newPage = parseInt(text.replace('catalog_page_', ''));
             await sendCatalogList(jid, newPage);
         }
-
-        // ============ SELECIONAR PRODUTO ============
         else if (text.startsWith('product_')) {
             const productId = parseInt(text.replace('product_', ''));
             await handlePurchaseRequest(jid, user, productId);
         }
-
-        // ============ CONFIRMAR COMPRA ============
         else if (text.toLowerCase() === 'confirmar' || text === 'confirm_purchase') {
             await confirmPurchase(jid, user);
         }
-
-        // ============ CANCELAR COMPRA ============
         else if (text.toLowerCase() === 'cancelar' || text === 'cancel_purchase') {
             delete userSelectedProduct[user.id];
             await sock.sendMessage(jid, { text: '❌ Compra cancelada.' });
             await showMainMenu(jid, user);
         }
-
-        // ============ TEXTO MODELO ============
         else if (text === 'affiliate_text') {
             const botNumber = sock.user?.id?.split(':')[0] || 'SEU_NUMERO';
             await sock.sendMessage(jid, { text: MessageService.referralText(botNumber, user) });
         }
-
-        // ============ SACAR COMISSÃO ============
         else if (text === 'affiliate_withdraw') {
             const commissionBalance = user.commission_balance || 0;
             if (commissionBalance <= 0) {
@@ -310,8 +249,6 @@ async function processMessage(msg, jid) {
                 await sock.sendMessage(jid, { text: MessageService.commissionWithdrawn(commissionBalance, newBalance) });
             }
         }
-
-        // ============ CONFIGURAÇÕES (MENU INTERATIVO) ============
         else if (text.startsWith('config_')) {
             if (!isAdmin) {
                 await sock.sendMessage(jid, { text: '❌ Acesso negado!' });
@@ -319,8 +256,6 @@ async function processMessage(msg, jid) {
             }
             await adminConfigHandler.handleConfigCommand(jid, text, []);
         }
-
-        // ============ PAINEL ADMIN ============
         else if (text === 'admin' || text === 'adm') {
             if (!isAdmin) {
                 await sock.sendMessage(jid, { text: '❌ Acesso negado! Apenas administradores.' });
@@ -328,13 +263,9 @@ async function processMessage(msg, jid) {
             }
             await showAdminPanel(jid);
         }
-
-        // ============ VOLTAR DO PAINEL ADMIN ============
         else if (text === 'admin_back') {
             await showAdminPanel(jid);
         }
-
-        // ============ DEFAULT - MENU PRINCIPAL ============
         else {
             await showMainMenu(jid, user);
         }
@@ -343,23 +274,20 @@ async function processMessage(msg, jid) {
         console.error('❌ Erro ao processar mensagem:', error);
         try {
             await sock.sendMessage(jid, { text: '❌ Ocorreu um erro. Digite *menu* para recomeçar.' });
-        } catch (e) {
-            console.error('Erro ao enviar mensagem de erro:', e);
-        }
+        } catch (e) {}
     }
 }
 
-// ============ MOSTRAR MENU PRINCIPAL ============
+// ============ MENUS ============
+
 async function showMainMenu(jid, user) {
     const balance = await UserService.getBalance(user.id);
     user.balance = balance;
     
-    // Usar mensagem personalizada ou padrão
     let welcomeMsg = await ConfigService.get('welcome_message');
     welcomeMsg = welcomeMsg.replace('{number}', user.phone_number);
     welcomeMsg = welcomeMsg.replace('{balance}', balance.toFixed(2));
     
-    // Adicionar Telegram se não estiver na mensagem
     if (!welcomeMsg.includes('Telegram') && !welcomeMsg.includes('Suporte')) {
         const telegram = await ConfigService.get('telegram_support');
         welcomeMsg += `\n\n📧 *Suporte:* ${telegram}`;
@@ -369,7 +297,6 @@ async function showMainMenu(jid, user) {
     await sendMainMenuList(jid);
 }
 
-// ============ MOSTRAR CATÁLOGO ============
 async function showCatalog(jid, user) {
     const balance = await UserService.getBalance(user.id);
     user.balance = balance;
@@ -383,7 +310,6 @@ async function showCatalog(jid, user) {
     await sendCatalogList(jid, 1);
 }
 
-// ============ MOSTRAR ÁREA DO ASSOCIADO ============
 async function showAffiliateArea(jid, user) {
     const stats = await ReferralService.getReferralStats(user.id);
     const commissionPct = await ConfigService.get('commission_percentage');
@@ -399,351 +325,14 @@ async function showAffiliateArea(jid, user) {
     await sendAffiliateList(jid);
 }
 
-// ============ MOSTRAR PAINEL ADMIN ============
 async function showAdminPanel(jid) {
     const stats = await AdminService.getDashboardStats();
     const adminMsg = MessageService.adminPanel(stats);
     
     await sock.sendMessage(jid, { text: adminMsg });
-    
-    // Menu interativo do admin
-    const sections = [
-        {
-            title: '📦 PRODUTOS',
-            rows: [
-                { title: '📋 Listar Produtos', rowId: 'admin_list_products', description: 'Ver todos' },
-                { title: '➕ Adicionar Produto', rowId: 'admin_add_product', description: 'Novo' },
-                { title: '📦 Gerenciar Estoque', rowId: 'admin_stock', description: 'Alterar' }
-            ]
-        },
-        {
-            title: '📊 RELATÓRIOS',
-            rows: [
-                { title: '📊 Dashboard', rowId: 'admin_dashboard', description: 'Visão geral' },
-                { title: '👥 Usuários', rowId: 'admin_users', description: 'Lista' },
-                { title: '🛍️ Vendas', rowId: 'admin_sales', description: 'Histórico' },
-                { title: '💳 Recargas', rowId: 'admin_recharges', description: 'Histórico' },
-                { title: '🏆 Top Produtos', rowId: 'admin_top', description: 'Mais vendidos' }
-            ]
-        },
-        {
-            title: '⚙️ CONFIGURAÇÕES',
-            rows: [
-                { title: '⚙️ Configurações Gerais', rowId: 'config_menu', description: 'Mensagens, emojis, links' }
-            ]
-        },
-        {
-            title: '📢 TRANSMISSÃO',
-            rows: [
-                { title: '📤 Enviar Broadcast', rowId: 'admin_broadcast', description: 'Mensagem para todos' }
-            ]
-        }
-    ];
-    
-    await sock.sendMessage(jid, {
-        title: '👑 Painel Admin',
-        text: '👑 *PAINEL ADMINISTRATIVO*\n\nSelecione uma opção:',
-        footer: 'Escolha abaixo:',
-        buttonText: '👑 Opções Admin',
-        sections: sections
-    });
 }
 
-// ============ COMANDOS ADMINISTRATIVOS ============
-
-async function handleAdminCommand(jid, user, text) {
-    const parts = text.split(' ');
-    const cmd = parts[0].toLowerCase();
-
-    // ============ BROADCAST ============
-    if (cmd === '/broadcast') {
-        const message = parts.slice(1).join(' ');
-        if (!message) {
-            await sock.sendMessage(jid, { text: '❌ Use: /broadcast MENSAGEM' });
-            return;
-        }
-        
-        await sock.sendMessage(jid, { text: '📤 *Iniciando transmissão...*' });
-        const result = await AdminService.broadcastMessage(message, sock);
-        
-        await sock.sendMessage(jid, {
-            text: `✅ *TRANSMISSÃO CONCLUÍDA!*\n\n` +
-                  `📤 Enviadas: ${result.sent}\n` +
-                  `❌ Falhas: ${result.failed}\n` +
-                  `👥 Total: ${result.total}`
-        });
-    }
-
-    // ============ ADICIONAR PRODUTO ============
-    else if (cmd === '/addproduto') {
-        const data = parts.slice(1).join(' ').split('|').map(s => s.trim());
-        if (data.length < 3) {
-            await sock.sendMessage(jid, { 
-                text: '❌ Formato: /addproduto Nome|Preço|Estoque|Categoria\n\n' +
-                      'Exemplo: /addproduto Netflix|6.00|33|Streaming' 
-            });
-            return;
-        }
-        
-        const [name, price, stock, category] = data;
-        const product = await AdminService.addProduct({
-            name,
-            price: parseFloat(price),
-            stock: parseInt(stock),
-            category: category || 'Geral',
-            description: `${name} - Acesso Premium`
-        });
-        
-        await sock.sendMessage(jid, {
-            text: `✅ *PRODUTO ADICIONADO!*\n\n` +
-                  `🆔 ID: ${product.id}\n` +
-                  `📦 Nome: ${name}\n` +
-                  `💰 Preço: R$ ${parseFloat(price).toFixed(2)}\n` +
-                  `📦 Estoque: ${stock}\n` +
-                  `🏷️ Categoria: ${category || 'Geral'}`
-        });
-    }
-
-    // ============ REMOVER PRODUTO ============
-    else if (cmd === '/removerproduto') {
-        const id = parseInt(parts[1]);
-        if (!id) {
-            await sock.sendMessage(jid, { text: '❌ Use: /removerproduto ID' });
-            return;
-        }
-        
-        await AdminService.removeProduct(id);
-        await sock.sendMessage(jid, { text: `✅ Produto #${id} removido!` });
-    }
-
-    // ============ EDITAR PRODUTO ============
-    else if (cmd === '/editarproduto') {
-        const data = parts.slice(1).join(' ').split('|').map(s => s.trim());
-        if (data.length < 2) {
-            await sock.sendMessage(jid, { 
-                text: '❌ Use: /editarproduto ID|Nome|Preço|Estoque|Categoria' 
-            });
-            return;
-        }
-        
-        const [id, name, price, stock, category] = data;
-        const updates = {};
-        if (name) updates.name = name;
-        if (price) updates.price = parseFloat(price);
-        if (stock) updates.stock = parseInt(stock);
-        if (category) updates.category = category;
-        
-        await AdminService.editProduct(parseInt(id), updates);
-        await sock.sendMessage(jid, { text: `✅ Produto #${id} editado!` });
-    }
-
-    // ============ ESTOQUE ============
-    else if (cmd === '/estoque') {
-        const data = parts.slice(1).join(' ').split('|').map(s => s.trim());
-        if (data.length < 2) {
-            await sock.sendMessage(jid, { text: '❌ Use: /estoque ID|Quantidade' });
-            return;
-        }
-        
-        await AdminService.updateStock(parseInt(data[0]), parseInt(data[1]));
-        await sock.sendMessage(jid, { text: `✅ Estoque do produto #${data[0]} atualizado!` });
-    }
-
-    // ============ LISTAR PRODUTOS ============
-    else if (cmd === '/listarprodutos') {
-        const products = await AdminService.listAllProducts();
-        
-        if (products.length === 0) {
-            await sock.sendMessage(jid, { text: '📦 Nenhum produto cadastrado.' });
-            return;
-        }
-        
-        let msg = '📦 *TODOS OS PRODUTOS*\n\n';
-        products.forEach(p => {
-            const status = p.active ? '✅' : '❌';
-            msg += `🆔 ${p.id} | ${status} ${p.name}\n`;
-            msg += `💰 R$ ${(p.price || 0).toFixed(2)} | 📦 ${p.stock}\n\n`;
-        });
-        
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ USUÁRIOS ============
-    else if (cmd === '/usuarios') {
-        const result = await AdminService.listUsers(1, 20);
-        let msg = `👥 *USUÁRIOS* (Total: ${result.total})\n\n`;
-        result.users.forEach((u, i) => {
-            msg += `${i + 1}. 📱 ${u.phone_number} | 💰 R$ ${(u.balance || 0).toFixed(2)}\n`;
-        });
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ BUSCAR USUÁRIO ============
-    else if (cmd === '/usuario') {
-        const phone = parts[1];
-        if (!phone) {
-            await sock.sendMessage(jid, { text: '❌ Use: /usuario NUMERO' });
-            return;
-        }
-        
-        const u = await AdminService.getUserByPhone(phone);
-        if (!u) {
-            await sock.sendMessage(jid, { text: '❌ Usuário não encontrado!' });
-            return;
-        }
-        
-        const msg = `👤 *USUÁRIO*\n\n` +
-                    `📱 ${u.phone_number}\n` +
-                    `💰 Saldo: R$ ${(u.balance || 0).toFixed(2)}\n` +
-                    `💼 Comissão: R$ ${(u.commission_balance || 0).toFixed(2)}\n` +
-                    `👥 Indicados: ${u.total_referrals || 0}\n` +
-                    `📝 Código: ${u.referral_code}`;
-        
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ VENDAS ============
-    else if (cmd === '/vendas') {
-        const purchases = await AdminService.listPurchases(20);
-        if (purchases.length === 0) {
-            await sock.sendMessage(jid, { text: '🛍️ Nenhuma venda ainda.' });
-            return;
-        }
-        
-        let msg = '🛍️ *ÚLTIMAS VENDAS*\n\n';
-        purchases.forEach((p, i) => {
-            msg += `${i + 1}. 📱 ${p.phone_number} | 📦 ${p.product_name} | 💰 R$ ${(p.amount || 0).toFixed(2)}\n`;
-        });
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ RECARGAS ============
-    else if (cmd === '/recargas') {
-        const recharges = await AdminService.listRecharges(20);
-        if (recharges.length === 0) {
-            await sock.sendMessage(jid, { text: '💳 Nenhuma recarga ainda.' });
-            return;
-        }
-        
-        let msg = '💳 *ÚLTIMAS RECARGAS*\n\n';
-        recharges.forEach((r, i) => {
-            const emoji = r.status === 'completed' ? '✅' : '⏳';
-            msg += `${i + 1}. 📱 ${r.phone_number} | 💰 R$ ${(r.amount || 0).toFixed(2)} | ${emoji}\n`;
-        });
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ TOP VENDAS ============
-    else if (cmd === '/topvendas') {
-        const stats = await AdminService.getDashboardStats();
-        if (!stats.topProducts || stats.topProducts.length === 0) {
-            await sock.sendMessage(jid, { text: '🏆 Nenhuma venda ainda.' });
-            return;
-        }
-        
-        let msg = '🏆 *TOP 5 PRODUTOS*\n\n';
-        stats.topProducts.forEach((p, i) => {
-            msg += `${i + 1}️⃣ ${p.product_name}: ${p.sales_count} vendas\n`;
-        });
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ DASHBOARD ============
-    else if (cmd === '/dashboard') {
-        const stats = await AdminService.getDashboardStats();
-        const msg = `📊 *DASHBOARD*\n\n` +
-                    `👥 Usuários: ${stats.totalUsers || 0}\n` +
-                    `🛍️ Vendas hoje: ${stats.todaySales || 0}\n` +
-                    `💰 Faturamento: R$ ${(stats.totalRevenue || 0).toFixed(2)}\n` +
-                    `💳 Recargas: ${stats.totalRecharges || 0}`;
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ CONFIGURAÇÕES RÁPIDAS ============
-    else if (cmd === '/config') {
-        const data = parts.slice(1).join(' ').split(' ').filter(s => s);
-        if (data.length < 2) {
-            await sock.sendMessage(jid, { 
-                text: '❌ Use: /config CHAVE VALOR\n\n' +
-                      'Chaves: admin_number, support_telegram, commission_percentage, pix_expiration, mp_access_token' 
-            });
-            return;
-        }
-        
-        const [key, ...value] = data;
-        await ConfigService.set(key, value.join(' '));
-        await sock.sendMessage(jid, { text: `✅ *${key}* salvo!` });
-    }
-
-    // ============ VER CONFIGURAÇÕES ============
-    else if (cmd === '/verconfig') {
-        const settings = await ConfigService.getAll();
-        let msg = '⚙️ *CONFIGURAÇÕES*\n\n';
-        Object.keys(settings).forEach(k => {
-            const val = k.includes('token') ? '***' : settings[k];
-            msg += `🔧 ${k}: ${val}\n`;
-        });
-        await sock.sendMessage(jid, { text: msg });
-    }
-
-    // ============ CONFIGURAR MERCADO PAGO ============
-    else if (cmd === '/mercadopago') {
-        const token = parts[1];
-        if (!token) {
-            await sock.sendMessage(jid, { text: '❌ Use: /mercadopago TOKEN' });
-            return;
-        }
-        await ConfigService.setMercadoPago(token);
-        await sock.sendMessage(jid, { text: '✅ Token Mercado Pago configurado!' });
-    }
-
-    // ============ CONFIGURAR COMISSÃO ============
-    else if (cmd === '/comissao') {
-        const pct = parts[1];
-        if (!pct) {
-            await sock.sendMessage(jid, { text: '❌ Use: /comissao PORCENTAGEM\nExemplo: /comissao 15' });
-            return;
-        }
-        await ConfigService.setCommission(pct);
-        await sock.sendMessage(jid, { text: `✅ Comissão alterada para ${pct}%!` });
-    }
-
-    // ============ CONFIGURAR TELEGRAM ============
-    else if (cmd === '/telegram') {
-        const telegram = parts[1];
-        if (!telegram) {
-            await sock.sendMessage(jid, { text: '❌ Use: /telegram @USUARIO' });
-            return;
-        }
-        await ConfigService.setTelegramSupport(telegram);
-        await sock.sendMessage(jid, { text: `✅ Telegram alterado para ${telegram}!` });
-    }
-
-    // ============ AJUDA ============
-    else if (cmd === '/ajuda' || cmd === '/help') {
-        const msg = `📚 *COMANDOS ADMIN*\n\n` +
-                    `📦 /addproduto Nome|Preço|Estoque|Categoria\n` +
-                    `❌ /removerproduto ID\n` +
-                    `✏️ /editarproduto ID|Nome|Preço|Estoque\n` +
-                    `📦 /estoque ID|Quantidade\n` +
-                    `📋 /listarprodutos\n` +
-                    `👥 /usuarios\n` +
-                    `🔍 /usuario NUMERO\n` +
-                    `🛍️ /vendas\n` +
-                    `💳 /recargas\n` +
-                    `🏆 /topvendas\n` +
-                    `📊 /dashboard\n` +
-                    `📤 /broadcast MENSAGEM\n` +
-                    `💳 /mercadopago TOKEN\n` +
-                    `💰 /comissao PORCENTAGEM\n` +
-                    `📧 /telegram @USUARIO\n` +
-                    `⚙️ /config CHAVE VALOR\n` +
-                    `📋 /verconfig`;
-        await sock.sendMessage(jid, { text: msg });
-    }
-}
-
-// ============ PROCESSAR PIX ============
+// ============ PIX ============
 
 async function processPix(jid, user, amount) {
     try {
@@ -760,11 +349,8 @@ async function processPix(jid, user, amount) {
         const pixExpiration = await ConfigService.get('pix_expiration');
         const expireDate = new Date(Date.now() + parseInt(pixExpiration) * 60000);
         
-        const pixEmoji = await ConfigService.get('emoji_pix');
-        const moneyEmoji = await ConfigService.get('emoji_money');
-        
-        const msg = `${pixEmoji} *PAGAMENTO PIX*\n\n` +
-                   `${moneyEmoji} *Valor:* R$ ${amount.toFixed(2)}\n` +
+        const msg = `💳 *PAGAMENTO PIX*\n\n` +
+                   `💰 *Valor:* R$ ${amount.toFixed(2)}\n` +
                    `🆔 *ID:* ${pixData.pixId}\n` +
                    `⏰ *Vencimento:* ${expireDate.toLocaleString('pt-BR')}\n\n` +
                    `📋 *CÓDIGO COPIA E COLA:*\n` +
@@ -774,7 +360,6 @@ async function processPix(jid, user, amount) {
         
         await sock.sendMessage(jid, { text: msg });
 
-        // Verificar pagamento
         let checkCount = 0;
         const maxChecks = (parseInt(pixExpiration) * 60) / 10;
 
@@ -785,9 +370,8 @@ async function processPix(jid, user, amount) {
                 if (result.status === 'approved') {
                     clearInterval(checkInterval);
                     const newBalance = await UserService.getBalance(user.id);
-                    const successEmoji = await ConfigService.get('emoji_success');
                     await sock.sendMessage(jid, { 
-                        text: `${successEmoji} *PAGAMENTO APROVADO!*\n\n💸 Recarga: R$ ${amount.toFixed(2)}\n💰 Novo saldo: R$ ${newBalance.toFixed(2)}` 
+                        text: `✅ *PAGAMENTO APROVADO!*\n\n💸 Recarga: R$ ${amount.toFixed(2)}\n💰 Novo saldo: R$ ${newBalance.toFixed(2)}` 
                     });
                 } else if (result.status === 'rejected' || checkCount >= maxChecks) {
                     clearInterval(checkInterval);
@@ -798,12 +382,11 @@ async function processPix(jid, user, amount) {
         }, 10000);
 
     } catch (error) {
-        const errorEmoji = await ConfigService.get('emoji_error');
-        await sock.sendMessage(jid, { text: `${errorEmoji} Erro: ${error.message}` });
+        await sock.sendMessage(jid, { text: `❌ Erro: ${error.message}` });
     }
 }
 
-// ============ PROCESSAR COMPRA ============
+// ============ COMPRA ============
 
 async function handlePurchaseRequest(jid, user, productId) {
     try {
@@ -855,11 +438,8 @@ async function confirmPurchase(jid, user) {
         const result = await PurchaseService.processPurchase(user.id, productId);
 
         if (result.success) {
-            const successEmoji = await ConfigService.get('emoji_success');
-            const msg = await ConfigService.get('purchase_success_message');
-            
             await sock.sendMessage(jid, {
-                text: `${successEmoji} *COMPRA REALIZADA!*\n\n` +
+                text: `✅ *COMPRA REALIZADA!*\n\n` +
                       `📦 ${result.product.name}\n` +
                       `💰 R$ ${result.product.price.toFixed(2)}\n\n` +
                       `🔐 *DADOS DE ACESSO:*\n` +
@@ -880,15 +460,88 @@ async function confirmPurchase(jid, user) {
     }
 }
 
+// ============ ADMIN COMMANDS ============
+
+async function handleAdminCommand(jid, user, text) {
+    const parts = text.split(' ');
+    const cmd = parts[0].toLowerCase();
+
+    if (cmd === '/broadcast') {
+        const message = parts.slice(1).join(' ');
+        if (!message) {
+            await sock.sendMessage(jid, { text: '❌ Use: /broadcast MENSAGEM' });
+            return;
+        }
+        await sock.sendMessage(jid, { text: '📤 *Iniciando transmissão...*' });
+        const result = await AdminService.broadcastMessage(message, sock);
+        await sock.sendMessage(jid, { text: `✅ Enviadas: ${result.sent}/${result.total}` });
+    }
+    else if (cmd === '/addproduto') {
+        const data = parts.slice(1).join(' ').split('|').map(s => s.trim());
+        if (data.length < 3) {
+            await sock.sendMessage(jid, { text: '❌ Use: /addproduto Nome|Preço|Estoque|Categoria' });
+            return;
+        }
+        const [name, price, stock, category] = data;
+        const product = await AdminService.addProduct({ name, price: parseFloat(price), stock: parseInt(stock), category: category || 'Geral' });
+        await sock.sendMessage(jid, { text: `✅ Produto #${product.id} adicionado!` });
+    }
+    else if (cmd === '/removerproduto') {
+        const id = parseInt(parts[1]);
+        if (!id) { await sock.sendMessage(jid, { text: '❌ Use: /removerproduto ID' }); return; }
+        await AdminService.removeProduct(id);
+        await sock.sendMessage(jid, { text: `✅ Produto #${id} removido!` });
+    }
+    else if (cmd === '/dashboard') {
+        const stats = await AdminService.getDashboardStats();
+        const msg = `📊 *DASHBOARD*\n\n👥 Usuários: ${stats.totalUsers || 0}\n💰 Faturamento: R$ ${(stats.totalRevenue || 0).toFixed(2)}`;
+        await sock.sendMessage(jid, { text: msg });
+    }
+    else if (cmd === '/usuarios') {
+        const result = await AdminService.listUsers(1, 20);
+        let msg = `👥 *USUÁRIOS* (Total: ${result.total})\n\n`;
+        result.users.forEach((u, i) => { msg += `${i + 1}. 📱 ${u.phone_number} | 💰 R$ ${(u.balance || 0).toFixed(2)}\n`; });
+        await sock.sendMessage(jid, { text: msg });
+    }
+    else if (cmd === '/comissao') {
+        const pct = parts[1];
+        if (!pct) { await sock.sendMessage(jid, { text: '❌ Use: /comissao PORCENTAGEM' }); return; }
+        await ConfigService.setCommission(pct);
+        await sock.sendMessage(jid, { text: `✅ Comissão alterada para ${pct}%!` });
+    }
+    else if (cmd === '/telegram') {
+        const telegram = parts[1];
+        if (!telegram) { await sock.sendMessage(jid, { text: '❌ Use: /telegram @USUARIO' }); return; }
+        await ConfigService.setTelegramSupport(telegram);
+        await sock.sendMessage(jid, { text: `✅ Telegram alterado para ${telegram}!` });
+    }
+    else if (cmd === '/mercadopago') {
+        const token = parts[1];
+        if (!token) { await sock.sendMessage(jid, { text: '❌ Use: /mercadopago TOKEN' }); return; }
+        await ConfigService.setMercadoPago(token);
+        await sock.sendMessage(jid, { text: '✅ Token Mercado Pago configurado!' });
+    }
+    else if (cmd === '/ajuda' || cmd === '/help') {
+        const msg = `📚 *COMANDOS ADMIN*\n\n` +
+                    `📦 /addproduto Nome|Preço|Estoque|Categoria\n` +
+                    `❌ /removerproduto ID\n` +
+                    `👥 /usuarios\n` +
+                    `📊 /dashboard\n` +
+                    `📤 /broadcast MENSAGEM\n` +
+                    `💰 /comissao PORCENTAGEM\n` +
+                    `📧 /telegram @USUARIO\n` +
+                    `💳 /mercadopago TOKEN`;
+        await sock.sendMessage(jid, { text: msg });
+    }
+}
+
 // ============ LISTAS INTERATIVAS ============
 
 async function sendMainMenuList(jid) {
     try {
         await sock.sendMessage(jid, {
-            title: '🐕 DOGUINHA STORE',
-            text: '🐕 DOGUINHA STORE',
-            footer: 'Escolha uma opção abaixo:',
-            buttonText: '📱 Ver Opções',
+            title: '🐕 DOGUINHA STORE', text: '🐕 DOGUINHA STORE',
+            footer: 'Escolha uma opção abaixo:', buttonText: '📱 Ver Opções',
             sections: [{
                 title: '📋 MENU PRINCIPAL',
                 rows: [
@@ -900,18 +553,15 @@ async function sendMainMenuList(jid) {
             }]
         });
     } catch (error) {
-        const fallback = `*🐕 DOGUINHA STORE*\n\n1. 💸 Adicionar Saldo\n2. 🛍️ Assinaturas Premium\n3. 💼 Área do Associado\n4. 👤 Contato do Suporte`;
-        await sock.sendMessage(jid, { text: fallback });
+        await sock.sendMessage(jid, { text: '*🐕 DOGUINHA STORE*\n\n1. 💸 Adicionar Saldo\n2. 🛍️ Assinaturas Premium\n3. 💼 Área do Associado\n4. 👤 Contato do Suporte' });
     }
 }
 
 async function sendPixMenuList(jid) {
     try {
         await sock.sendMessage(jid, {
-            title: '💸 MENU DE OPÇÕES DE PIX',
-            text: '💸 MENU DE OPÇÕES DE PIX',
-            footer: 'Escolha o valor da recarga:',
-            buttonText: '💳 Ver Valores',
+            title: '💸 MENU DE OPÇÕES DE PIX', text: '💸 MENU DE OPÇÕES DE PIX',
+            footer: 'Escolha o valor da recarga:', buttonText: '💳 Ver Valores',
             sections: [
                 {
                     title: '💰 VALORES DISPONÍVEIS',
@@ -922,15 +572,11 @@ async function sendPixMenuList(jid) {
                         { title: '✍️ Digite outro valor', rowId: 'pix_custom', description: 'Valor personalizado' }
                     ]
                 },
-                {
-                    title: '🔙 VOLTAR',
-                    rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }]
-                }
+                { title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] }
             ]
         });
     } catch (error) {
-        const fallback = `*💸 MENU PIX*\n\n1. PIX R$ 5,00\n2. PIX R$ 8,00\n3. PIX R$ 20,00\n4. Digite outro valor`;
-        await sock.sendMessage(jid, { text: fallback });
+        await sock.sendMessage(jid, { text: '*💸 MENU PIX*\n\n1. PIX R$ 5,00\n2. PIX R$ 8,00\n3. PIX R$ 20,00\n4. Digite outro valor' });
     }
 }
 
@@ -961,51 +607,35 @@ async function sendCatalogList(jid, page = 1) {
             }))
         }];
 
-        // Navegação
         const navRows = [];
         if (page > 1) {
-            navRows.push({
-                title: '⬅️ Página Anterior',
-                rowId: `catalog_page_${page - 1}`,
-                description: `Voltar para página ${page - 1}`
-            });
+            navRows.push({ title: '⬅️ Página Anterior', rowId: `catalog_page_${page - 1}`, description: `Voltar para página ${page - 1}` });
         }
         if (page < totalPages) {
-            navRows.push({
-                title: '📄 Mostrar Mais Produtos',
-                rowId: `catalog_page_${page + 1}`,
-                description: `Ver página ${page + 1} de ${totalPages}`
-            });
+            navRows.push({ title: '📄 Mostrar Mais Produtos', rowId: `catalog_page_${page + 1}`, description: `Ver página ${page + 1} de ${totalPages}` });
         }
         if (navRows.length > 0) {
             sections.push({ title: '📄 NAVEGAÇÃO', rows: navRows });
         }
 
-        sections.push({
-            title: '🔙 VOLTAR',
-            rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }]
-        });
+        sections.push({ title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] });
 
         await sock.sendMessage(jid, {
             title: '🛍️ Assinaturas Premium',
             text: `🛍️ *ASSINATURAS PREMIUM*\n\n📄 Página ${page} de ${totalPages}\n📦 Total: ${totalProducts} produtos`,
-            footer: 'Escolha um produto abaixo:',
-            buttonText: '📦 Ver Produtos',
-            sections: sections
+            footer: 'Escolha um produto abaixo:', buttonText: '📦 Ver Produtos', sections: sections
         });
 
     } catch (error) {
-        await sock.sendMessage(jid, { text: 'Erro ao carregar catálogo. Tente novamente.' });
+        await sock.sendMessage(jid, { text: 'Erro ao carregar catálogo.' });
     }
 }
 
 async function sendAffiliateList(jid) {
     try {
         await sock.sendMessage(jid, {
-            title: '💼 Área do Associado',
-            text: '💼 Área do Associado',
-            footer: 'Escolha uma opção:',
-            buttonText: '💼 Opções',
+            title: '💼 Área do Associado', text: '💼 Área do Associado',
+            footer: 'Escolha uma opção:', buttonText: '💼 Opções',
             sections: [
                 {
                     title: '📢 OPÇÕES',
@@ -1014,15 +644,11 @@ async function sendAffiliateList(jid) {
                         { title: '💰 Sacar Comissão', rowId: 'affiliate_withdraw', description: 'Transferir para saldo' }
                     ]
                 },
-                {
-                    title: '🔙 VOLTAR',
-                    rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }]
-                }
+                { title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] }
             ]
         });
     } catch (error) {
-        const fallback = `*💼 ÁREA DO ASSOCIADO*\n\n1. 📢 Texto Modelo\n2. 💰 Sacar Comissão`;
-        await sock.sendMessage(jid, { text: fallback });
+        await sock.sendMessage(jid, { text: '*💼 ÁREA DO ASSOCIADO*\n\n1. 📢 Texto Modelo\n2. 💰 Sacar Comissão' });
     }
 }
 
@@ -1042,15 +668,9 @@ process.on('SIGINT', () => {
     process.exit(0);
 });
 
-// ============ EXPORTAR ============
-
 module.exports = {
-    getInstance: () => ({
-        isConnected: () => sock?.user ? true : false
-    })
+    getInstance: () => ({ isConnected: () => sock?.user ? true : false })
 };
-
-// ============ INICIAR ============
 
 console.clear();
 console.log('🐕 DOGUINHA STORE BOT v3.0');
@@ -1060,23 +680,3 @@ console.log('📱 Pareamento por código');
 console.log('🚀 Pronto para Render\n');
 
 startBot().catch(console.error);
-```
-
----
-
-🎉 AGORA SIM - 100% COMPLETO!
-
-✅ TUDO QUE VOCÊ PEDIU:
-
-# Funcionalidade Status
-1 "Mostrar Mais" no catálogo ✅ Navegação completa
-2 Painel Alterar mensagens ✅ Via menu interativo
-3 Painel Alterar emojis ✅ Via menu interativo
-4 Painel Alterar textos ✅ Via menu interativo
-5 Painel Alterar links ✅ Via menu interativo
-6 Alterar Telegram suporte ✅ /telegram + menu
-7 Configurar API Mercado Pago ✅ /mercadopago + menu
-8 Alterar comissão ✅ /comissao + menu
-9 WhatsApp, grupo, logo ✅ Via menu interativo
-
-O bot está 100% finalizado! 🐕🔥
