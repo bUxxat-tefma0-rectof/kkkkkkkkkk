@@ -8,35 +8,25 @@ class UserService {
     static async getOrCreateUser(phoneNumber) {
         const db = this.getDb();
         
-        // Buscar usuário
         let stmt = db.prepare('SELECT * FROM users WHERE phone_number = ?');
         stmt.bind([phoneNumber]);
         
         let user = null;
         if (stmt.step()) {
-            const row = stmt.getAsObject();
-            user = row;
+            user = stmt.getAsObject();
         }
         stmt.free();
         
-        if (user) {
-            return user;
-        }
+        if (user) return user;
         
-        // Criar novo usuário
         const referralCode = this.generateReferralCode(phoneNumber);
         const referralLink = `https://wa.me/SEU_NUMERO?text=${referralCode}`;
         
-        db.run(
-            'INSERT INTO users (phone_number, referral_code, referral_link) VALUES (?, ?, ?)',
-            [phoneNumber, referralCode, referralLink]
-        );
+        db.run('INSERT INTO users (phone_number, referral_code, referral_link) VALUES (?, ?, ?)', [phoneNumber, referralCode, referralLink]);
         
-        // Salvar
         const dbPath = process.env.DB_PATH || './database/store.db';
         saveDatabase(dbPath);
         
-        // Buscar usuário criado
         stmt = db.prepare('SELECT * FROM users WHERE phone_number = ?');
         stmt.bind([phoneNumber]);
         if (stmt.step()) {
