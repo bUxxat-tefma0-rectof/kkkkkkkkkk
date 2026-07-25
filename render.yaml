@@ -2,15 +2,19 @@ services:
   - type: web
     name: doguinha-store-bot
     env: node
-    buildCommand: npm install
+    region: oregon
+    buildCommand: |
+      npm install
+      mkdir -p auth database logs backups
     startCommand: node src/index.js
+    healthCheckPath: /health
     envVars:
       - key: NODE_VERSION
-        value: 18.0.0
+        value: "18.17.0"
       - key: BOT_NAME
-        value: Doguinha Store
+        value: "Doguinha Store"
       - key: ADMIN_NUMBER
-        value: 5511999999999
+        value: "5511999999999"
       - key: SUPPORT_TELEGRAM
         value: "@doguinhastore"
       - key: MP_ACCESS_TOKEN
@@ -22,8 +26,11 @@ services:
       - key: PIX_EXPIRATION
         value: "30"
       - key: DB_PATH
-        value: /opt/render/project/src/database/store.db
+        value: "/opt/render/project/src/database/store.db"
+      - key: PORT
+        value: "3000"
+    autoDeploy: true
     disk:
-      name: data
+      name: bot-data
       mountPath: /opt/render/project/src
       sizeGB: 1
