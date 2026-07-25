@@ -11,7 +11,6 @@ const {
 const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
-const readline = require('readline');
 const KeepAliveServer = require('./server');
 
 const UserService = require('./services/userService');
@@ -34,18 +33,11 @@ let userSelectedProduct = {};
 let catalogPage = {};
 let adminConfigHandler = null;
 
-// ============ FUNÇÕES AUXILIARES ============
-
 function ensureDirectories() {
     ['auth', 'logs', 'backups', 'database', 'tmp'].forEach(dir => {
         const p = path.join(__dirname, '..', dir);
         if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
     });
-}
-
-function askQuestion(query) {
-    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-    return new Promise(resolve => rl.question(query, ans => { rl.close(); resolve(ans); }));
 }
 
 // ============ FUNÇÃO PRINCIPAL ============
@@ -86,33 +78,33 @@ async function startBot() {
         sock.ev.on('creds.update', saveCreds);
 
         sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect } = update;
+            const { connection, lastDisconnect, qr } = update;
 
             if (connection === 'connecting') {
                 console.log('🔄 Conectando ao WhatsApp...');
                 
                 if (!sock.authState.creds.registered) {
-                    setTimeout(async () => {
-                        console.log('\n📱 ========== CÓDIGO DE PARECAMENTO ==========');
-                        console.log('1. Abra o WhatsApp no seu celular');
-                        console.log('2. Vá em: Configurações > Aparelhos Conectados');
-                        console.log('3. Toque em "Conectar um aparelho"');
-                        console.log('4. Toque em "Conectar com código"');
-                        console.log('===========================================\n');
+                    const pairingCode = process.env.PAIRING_CODE;
+                    
+                    if (pairingCode && pairingCode.length === 8) {
+                        console.log(`\n📱 Código de pareamento: ${pairingCode}`);
+                        console.log('⏳ Conectando...\n');
                         
-                        const code = await askQuestion('📝 Digite o código de 8 dígitos: ');
-                        
-                        if (code && code.length === 8) {
-                            try {
-                                await sock.requestPairingCode(code);
-                                console.log('\n✅ Código enviado! Confirme no celular...\n');
-                            } catch (error) {
-                                console.log('\n❌ Código inválido! Reinicie o bot com: npm start\n');
-                            }
-                        } else {
-                            console.log('\n❌ Código deve ter 8 dígitos! Reinicie com: npm start\n');
+                        try {
+                            await sock.requestPairingCode(pairingCode);
+                            console.log('✅ Código enviado! Confirme no WhatsApp do celular!\n');
+                        } catch (error) {
+                            console.log('\n❌ Código inválido ou expirado!');
+                            console.log('📝 Gere um novo código no WhatsApp e atualize PAIRING_CODE no Render.\n');
                         }
-                    }, 3000);
+                    } else {
+                        if (qr) {
+                            const qrcode = require('qrcode-terminal');
+                            console.log('\n📱 QR Code (fallback):');
+                            qrcode.generate(qr, { small: true });
+                        }
+                        console.log('\n📝 Para usar código: Adicione PAIRING_CODE nas variáveis de ambiente do Render\n');
+                    }
                 }
             }
 
@@ -131,7 +123,7 @@ async function startBot() {
                     console.log('🔄 Reconectando em 5 segundos...\n');
                     setTimeout(() => startBot(), 5000);
                 } else {
-                    console.log('\n❌ Sessão expirada. Delete a pasta "auth" e reinicie.\n');
+                    console.log('\n❌ Sessão expirada. Reinicie o deploy.\n');
                 }
             }
         });
@@ -261,10 +253,8 @@ async function processMessage(msg, jid) {
                 await sock.sendMessage(jid, { text: '❌ Acesso negado! Apenas administradores.' });
                 return;
             }
-            await showAdminPanel(jid);
-        }
-        else if (text === 'admin_back') {
-            await showAdminPanel(jid);
+            const stats = await AdminService.getDashboardStats();
+            await sock.sendMessage(jid, { text: MessageService.adminPanel(stats) });
         }
         else {
             await showMainMenu(jid, user);
@@ -323,13 +313,6 @@ async function showAffiliateArea(jid, user) {
     
     await sock.sendMessage(jid, { text: msg });
     await sendAffiliateList(jid);
-}
-
-async function showAdminPanel(jid) {
-    const stats = await AdminService.getDashboardStats();
-    const adminMsg = MessageService.adminPanel(stats);
-    
-    await sock.sendMessage(jid, { text: adminMsg });
 }
 
 // ============ PIX ============
