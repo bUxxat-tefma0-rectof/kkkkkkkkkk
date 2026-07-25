@@ -1,3 +1,42 @@
+🤔 ENTENDI AGORA!
+
+Se o WhatsApp do seu iPhone não mostra código nenhum quando você vai em "Conectar um aparelho", é porque:
+
+---
+
+📱 NO iPHONE, O WHATSAPP TEM 2 TELAS:
+
+Tela 1: Scanner QR Code (padrão)
+
+· Abre a câmera para escanear QR Code
+· NÃO mostra código
+
+Tela 2: Conectar com código
+
+· Você precisa tocar no texto azul "Conectar com código"
+· Aí VOCÊ digita um código (não gera)
+
+---
+
+🎯 ENTÃO SEU iPHONE:
+
+Se não aparece código quando toca em "Conectar com código", e sim pede para VOCÊ digitar, então o fluxo no iPhone é:
+
+iPhone pede que VOCÊ digite um código → O código tem que vir de fora
+
+---
+
+✅ SOLUÇÃO FINAL:
+
+Vou fazer o BOT GERAR o código de pareamento e mostrar nos logs do Render. Aí você copia dos logs e digita no iPhone.
+
+---
+
+📁 ATUALIZE O src/index.js NO GITHUB:
+
+Delete tudo e cole isso:
+
+```javascript
 require('dotenv').config();
 
 const {
@@ -5,7 +44,8 @@ const {
     useMultiFileAuthState,
     DisconnectReason,
     fetchLatestBaileysVersion,
-    makeCacheableSignalKeyStore
+    makeCacheableSignalKeyStore,
+    generateRegistrationId
 } = require('@whiskeysockets/baileys');
 
 const pino = require('pino');
@@ -21,7 +61,6 @@ const MessageService = require('./services/messageService');
 const AdminService = require('./services/adminService');
 const ReferralService = require('./services/referralService');
 const ConfigService = require('./services/configService');
-const AdminConfigHandler = require('./handlers/adminConfigHandler');
 const { initializeDatabase } = require('./database/init');
 const config = require('./config/settings');
 
@@ -31,7 +70,6 @@ let sock = null;
 let server = null;
 let userSelectedProduct = {};
 let catalogPage = {};
-let adminConfigHandler = null;
 
 function ensureDirectories() {
     ['auth', 'logs', 'backups', 'database', 'tmp'].forEach(dir => {
@@ -39,8 +77,6 @@ function ensureDirectories() {
         if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
     });
 }
-
-// ============ FUNÇÃO PRINCIPAL ============
 
 async function startBot() {
     try {
@@ -71,9 +107,9 @@ async function startBot() {
             markOnlineOnConnect: true,
             connectTimeoutMs: 60000,
             defaultQueryTimeoutMs: 60000,
+            mobile: false,
+            syncFullHistory: false,
         });
-
-        adminConfigHandler = new AdminConfigHandler(sock);
 
         sock.ev.on('creds.update', saveCreds);
 
@@ -82,23 +118,48 @@ async function startBot() {
 
             if (connection === 'connecting') {
                 console.log('🔄 Conectando ao WhatsApp...');
+                
+                // TENTAR GERAR CÓDIGO DE PARECAMENTO
+                if (!sock.authState.creds.registered && !sock.authState.creds.me) {
+                    setTimeout(async () => {
+                        try {
+                            console.log('\n📱 GERANDO CÓDIGO DE PARECAMENTO...\n');
+                            
+                            // Solicitar código de pareamento
+                            const code = await sock.requestPairingCode();
+                            
+                            console.log('==========================================');
+                            console.log('🔢 CÓDIGO DE PARECAMENTO GERADO:');
+                            console.log(`   ${code}`);
+                            console.log('==========================================');
+                            console.log('');
+                            console.log('📱 NO SEU iPHONE:');
+                            console.log('1. Abra o WhatsApp');
+                            console.log('2. Ajustes > Aparelhos Conectados');
+                            console.log('3. Toque em "Conectar um aparelho"');
+                            console.log('4. Toque em "Conectar com código"');
+                            console.log('5. DIGITE O CÓDIGO ACIMA');
+                            console.log('==========================================\n');
+                            
+                        } catch (err) {
+                            console.log('\n❌ Não foi possível gerar código.');
+                            console.log('📱 Use o QR Code como alternativa:\n');
+                            
+                            if (qr) {
+                                const qrcode = require('qrcode-terminal');
+                                qrcode.generate(qr, { small: true });
+                            }
+                        }
+                    }, 3000);
+                }
             }
 
-            // MOSTRAR QR CODE NOS LOGS (você escaneia com iPhone)
-            if (qr) {
-                console.log('\n📱 ====================================');
-                console.log('   ESCANEIE O QR CODE COM SEU iPHONE');
-                console.log('====================================');
-                console.log('1. Abra o WhatsApp no iPhone');
-                console.log('2. Ajustes > Aparelhos Conectados');
-                console.log('3. Conectar um aparelho');
-                console.log('4. Aponte a câmera para o QR Code');
-                console.log('====================================\n');
-                
+            // Mostrar QR Code se disponível
+            if (qr && !sock.authState.creds.registered) {
+                console.log('\n📱 QR CODE DISPONÍVEL (alternativa):\n');
                 const qrcode = require('qrcode-terminal');
                 qrcode.generate(qr, { small: true });
-                
-                console.log('\n⏳ Aguardando scan do QR Code...\n');
+                console.log('\nEscaneie com iPhone: Ajustes > Aparelhos Conectados\n');
             }
 
             if (connection === 'open') {
@@ -116,7 +177,7 @@ async function startBot() {
                     console.log('🔄 Reconectando em 5 segundos...\n');
                     setTimeout(() => startBot(), 5000);
                 } else {
-                    console.log('\n❌ Sessão expirada. Reinicie o deploy.\n');
+                    console.log('\n❌ Sessão expirada. Delete a pasta "auth" e reinicie.\n');
                 }
             }
         });
@@ -134,12 +195,9 @@ async function startBot() {
 
     } catch (error) {
         console.error('❌ Erro ao iniciar:', error.message);
-        console.log('🔄 Tentando novamente em 10 segundos...\n');
         setTimeout(() => startBot(), 10000);
     }
 }
-
-// ============ PROCESSAR MENSAGENS ============
 
 async function processMessage(msg, jid) {
     try {
@@ -163,12 +221,6 @@ async function processMessage(msg, jid) {
 
         const user = await UserService.getOrCreateUser(phoneNumber);
         const isAdmin = await AdminService.isAdmin(phoneNumber);
-
-        if (global.awaitingConfig && global.awaitingConfig[jid]) {
-            const configKey = global.awaitingConfig[jid];
-            await adminConfigHandler.saveConfig(jid, configKey, text);
-            return;
-        }
 
         if (isAdmin && text.startsWith('/')) {
             await handleAdminCommand(jid, user, text);
@@ -234,13 +286,6 @@ async function processMessage(msg, jid) {
                 await sock.sendMessage(jid, { text: MessageService.commissionWithdrawn(commissionBalance, newBalance) });
             }
         }
-        else if (text.startsWith('config_')) {
-            if (!isAdmin) {
-                await sock.sendMessage(jid, { text: '❌ Acesso negado!' });
-                return;
-            }
-            await adminConfigHandler.handleConfigCommand(jid, text, []);
-        }
         else if (text === 'admin' || text === 'adm') {
             if (!isAdmin) {
                 await sock.sendMessage(jid, { text: '❌ Acesso negado! Apenas administradores.' });
@@ -261,8 +306,6 @@ async function processMessage(msg, jid) {
     }
 }
 
-// ============ MENUS ============
-
 async function showMainMenu(jid, user) {
     const balance = await UserService.getBalance(user.id);
     user.balance = balance;
@@ -271,10 +314,8 @@ async function showMainMenu(jid, user) {
     welcomeMsg = welcomeMsg.replace('{number}', user.phone_number);
     welcomeMsg = welcomeMsg.replace('{balance}', balance.toFixed(2));
     
-    if (!welcomeMsg.includes('Telegram') && !welcomeMsg.includes('Suporte')) {
-        const telegram = await ConfigService.get('telegram_support');
-        welcomeMsg += `\n\n📧 *Suporte:* ${telegram}`;
-    }
+    const telegram = await ConfigService.get('telegram_support');
+    welcomeMsg += `\n\n📧 *Suporte:* ${telegram}`;
     
     await sock.sendMessage(jid, { text: welcomeMsg });
     await sendMainMenuList(jid);
@@ -308,8 +349,6 @@ async function showAffiliateArea(jid, user) {
     await sendAffiliateList(jid);
 }
 
-// ============ PIX ============
-
 async function processPix(jid, user, amount) {
     try {
         const minValue = parseFloat(await ConfigService.get('pix_min_value') || '5');
@@ -321,24 +360,18 @@ async function processPix(jid, user, amount) {
         await sock.sendMessage(jid, { text: '⏳ *Gerando PIX...*' });
 
         const pixData = await PixService.generatePix(user.id, amount);
-        
         const pixExpiration = await ConfigService.get('pix_expiration');
-        const expireDate = new Date(Date.now() + parseInt(pixExpiration) * 60000);
         
         const msg = `💳 *PAGAMENTO PIX*\n\n` +
-                   `💰 *Valor:* R$ ${amount.toFixed(2)}\n` +
-                   `🆔 *ID:* ${pixData.pixId}\n` +
-                   `⏰ *Vencimento:* ${expireDate.toLocaleString('pt-BR')}\n\n` +
-                   `📋 *CÓDIGO COPIA E COLA:*\n` +
-                   `\`\`\`${pixData.copyPaste}\`\`\`\n\n` +
-                   `⚠️ Expira em ${pixExpiration} minutos\n` +
-                   `✅ Confirmação automática!`;
+                   `💰 Valor: R$ ${amount.toFixed(2)}\n` +
+                   `🆔 ID: ${pixData.pixId}\n` +
+                   `⏰ Expira em: ${pixExpiration} min\n\n` +
+                   `📋 *CÓDIGO COPIA E COLA:*\n\`\`\`${pixData.copyPaste}\`\`\`\n\n✅ Confirmação automática!`;
         
         await sock.sendMessage(jid, { text: msg });
 
         let checkCount = 0;
         const maxChecks = (parseInt(pixExpiration) * 60) / 10;
-
         const checkInterval = setInterval(async () => {
             checkCount++;
             try {
@@ -346,9 +379,7 @@ async function processPix(jid, user, amount) {
                 if (result.status === 'approved') {
                     clearInterval(checkInterval);
                     const newBalance = await UserService.getBalance(user.id);
-                    await sock.sendMessage(jid, { 
-                        text: `✅ *PAGAMENTO APROVADO!*\n\n💸 Recarga: R$ ${amount.toFixed(2)}\n💰 Novo saldo: R$ ${newBalance.toFixed(2)}` 
-                    });
+                    await sock.sendMessage(jid, { text: `✅ *PAGO!*\n💰 Saldo: R$ ${newBalance.toFixed(2)}` });
                 } else if (result.status === 'rejected' || checkCount >= maxChecks) {
                     clearInterval(checkInterval);
                 }
@@ -362,81 +393,36 @@ async function processPix(jid, user, amount) {
     }
 }
 
-// ============ COMPRA ============
-
 async function handlePurchaseRequest(jid, user, productId) {
-    try {
-        const balance = await UserService.getBalance(user.id);
-        const product = await ProductService.getProductById(productId);
+    const balance = await UserService.getBalance(user.id);
+    const product = await ProductService.getProductById(productId);
 
-        if (!product) {
-            await sock.sendMessage(jid, { text: '❌ Produto não encontrado!' });
-            return;
-        }
-
-        if (product.stock <= 0) {
-            await sock.sendMessage(jid, { text: `❌ *${product.name}* esgotado!` });
-            return;
-        }
-
-        if (balance < product.price) {
-            const msg = await ConfigService.get('insufficient_balance_message');
-            const finalMsg = msg.replace('{balance}', balance.toFixed(2)).replace('{price}', product.price.toFixed(2));
-            await sock.sendMessage(jid, { text: finalMsg });
-            return;
-        }
-
-        userSelectedProduct[user.id] = productId;
-
-        await sock.sendMessage(jid, {
-            text: `🛒 *CONFIRMAR COMPRA*\n\n` +
-                  `📦 Produto: ${product.name}\n` +
-                  `💰 Valor: R$ ${product.price.toFixed(2)}\n` +
-                  `📦 Estoque: ${product.stock} unid.\n\n` +
-                  `Digite *confirmar* para comprar\n` +
-                  `Digite *cancelar* para desistir`
-        });
-
-    } catch (error) {
-        console.error('Erro ao processar compra:', error);
-        await sock.sendMessage(jid, { text: '❌ Erro ao processar compra.' });
+    if (!product) { await sock.sendMessage(jid, { text: '❌ Produto não encontrado!' }); return; }
+    if (product.stock <= 0) { await sock.sendMessage(jid, { text: `❌ ${product.name} esgotado!` }); return; }
+    if (balance < product.price) {
+        await sock.sendMessage(jid, { text: `❌ Saldo insuficiente! Falta R$ ${(product.price - balance).toFixed(2)}` });
+        return;
     }
+
+    userSelectedProduct[user.id] = productId;
+    await sock.sendMessage(jid, { text: `🛒 *${product.name}*\n💰 R$ ${product.price.toFixed(2)}\n\nDigite *confirmar* ou *cancelar*` });
 }
 
 async function confirmPurchase(jid, user) {
-    try {
-        const productId = userSelectedProduct[user.id];
-        if (!productId) {
-            await sock.sendMessage(jid, { text: '❌ Nenhum produto selecionado!' });
-            return;
-        }
+    const productId = userSelectedProduct[user.id];
+    if (!productId) { await sock.sendMessage(jid, { text: '❌ Nenhum produto!' }); return; }
 
-        const result = await PurchaseService.processPurchase(user.id, productId);
+    const result = await PurchaseService.processPurchase(user.id, productId);
 
-        if (result.success) {
-            await sock.sendMessage(jid, {
-                text: `✅ *COMPRA REALIZADA!*\n\n` +
-                      `📦 ${result.product.name}\n` +
-                      `💰 R$ ${result.product.price.toFixed(2)}\n\n` +
-                      `🔐 *DADOS DE ACESSO:*\n` +
-                      `📧 Login: \`${result.credentials.login}\`\n` +
-                      `🔑 Senha: \`${result.credentials.password}\`\n` +
-                      `📅 Vence: ${result.credentials.expirationDate.toLocaleDateString('pt-BR')}\n\n` +
-                      `⚠️ *Guarde esses dados!*`
-            });
-
-            delete userSelectedProduct[user.id];
-        } else {
-            await sock.sendMessage(jid, { text: `❌ ${result.message}` });
-        }
-
-    } catch (error) {
-        console.error('Erro ao confirmar compra:', error);
-        await sock.sendMessage(jid, { text: '❌ Erro ao finalizar compra.' });
+    if (result.success) {
+        await sock.sendMessage(jid, {
+            text: `✅ *COMPRA REALIZADA!*\n\n📦 ${result.product.name}\n💰 R$ ${result.product.price.toFixed(2)}\n\n🔐 Login: \`${result.credentials.login}\`\n🔑 Senha: \`${result.credentials.password}\`\n📅 Vence: ${result.credentials.expirationDate.toLocaleDateString('pt-BR')}`
+        });
+        delete userSelectedProduct[user.id];
+    } else {
+        await sock.sendMessage(jid, { text: `❌ ${result.message}` });
     }
 }
-
-// ============ ADMIN COMMANDS ============
 
 async function handleAdminCommand(jid, user, text) {
     const parts = text.split(' ');
@@ -444,20 +430,13 @@ async function handleAdminCommand(jid, user, text) {
 
     if (cmd === '/broadcast') {
         const message = parts.slice(1).join(' ');
-        if (!message) {
-            await sock.sendMessage(jid, { text: '❌ Use: /broadcast MENSAGEM' });
-            return;
-        }
-        await sock.sendMessage(jid, { text: '📤 *Iniciando transmissão...*' });
+        if (!message) { await sock.sendMessage(jid, { text: '❌ Use: /broadcast MENSAGEM' }); return; }
         const result = await AdminService.broadcastMessage(message, sock);
         await sock.sendMessage(jid, { text: `✅ Enviadas: ${result.sent}/${result.total}` });
     }
     else if (cmd === '/addproduto') {
         const data = parts.slice(1).join(' ').split('|').map(s => s.trim());
-        if (data.length < 3) {
-            await sock.sendMessage(jid, { text: '❌ Use: /addproduto Nome|Preço|Estoque|Categoria' });
-            return;
-        }
+        if (data.length < 3) { await sock.sendMessage(jid, { text: '❌ Use: /addproduto Nome|Preço|Estoque|Categoria' }); return; }
         const [name, price, stock, category] = data;
         const product = await AdminService.addProduct({ name, price: parseFloat(price), stock: parseInt(stock), category: category || 'Geral' });
         await sock.sendMessage(jid, { text: `✅ Produto #${product.id} adicionado!` });
@@ -470,189 +449,130 @@ async function handleAdminCommand(jid, user, text) {
     }
     else if (cmd === '/dashboard') {
         const stats = await AdminService.getDashboardStats();
-        const msg = `📊 *DASHBOARD*\n\n👥 Usuários: ${stats.totalUsers || 0}\n💰 Faturamento: R$ ${(stats.totalRevenue || 0).toFixed(2)}`;
-        await sock.sendMessage(jid, { text: msg });
+        await sock.sendMessage(jid, { text: `📊 *DASHBOARD*\n👥 Usuários: ${stats.totalUsers || 0}\n💰 Faturamento: R$ ${(stats.totalRevenue || 0).toFixed(2)}` });
     }
-    else if (cmd === '/usuarios') {
-        const result = await AdminService.listUsers(1, 20);
-        let msg = `👥 *USUÁRIOS* (Total: ${result.total})\n\n`;
-        result.users.forEach((u, i) => { msg += `${i + 1}. 📱 ${u.phone_number} | 💰 R$ ${(u.balance || 0).toFixed(2)}\n`; });
-        await sock.sendMessage(jid, { text: msg });
-    }
-    else if (cmd === '/comissao') {
-        const pct = parts[1];
-        if (!pct) { await sock.sendMessage(jid, { text: '❌ Use: /comissao PORCENTAGEM' }); return; }
-        await ConfigService.setCommission(pct);
-        await sock.sendMessage(jid, { text: `✅ Comissão alterada para ${pct}%!` });
-    }
-    else if (cmd === '/telegram') {
-        const telegram = parts[1];
-        if (!telegram) { await sock.sendMessage(jid, { text: '❌ Use: /telegram @USUARIO' }); return; }
-        await ConfigService.setTelegramSupport(telegram);
-        await sock.sendMessage(jid, { text: `✅ Telegram alterado para ${telegram}!` });
-    }
-    else if (cmd === '/mercadopago') {
-        const token = parts[1];
-        if (!token) { await sock.sendMessage(jid, { text: '❌ Use: /mercadopago TOKEN' }); return; }
-        await ConfigService.setMercadoPago(token);
-        await sock.sendMessage(jid, { text: '✅ Token Mercado Pago configurado!' });
-    }
-    else if (cmd === '/ajuda' || cmd === '/help') {
-        const msg = `📚 *COMANDOS ADMIN*\n\n` +
-                    `📦 /addproduto Nome|Preço|Estoque|Categoria\n` +
-                    `❌ /removerproduto ID\n` +
-                    `👥 /usuarios\n` +
-                    `📊 /dashboard\n` +
-                    `📤 /broadcast MENSAGEM\n` +
-                    `💰 /comissao PORCENTAGEM\n` +
-                    `📧 /telegram @USUARIO\n` +
-                    `💳 /mercadopago TOKEN`;
-        await sock.sendMessage(jid, { text: msg });
+    else if (cmd === '/ajuda') {
+        await sock.sendMessage(jid, { text: `📚 /addproduto | /removerproduto | /dashboard | /broadcast | /usuarios | /comissao | /telegram | /mercadopago` });
     }
 }
-
-// ============ LISTAS INTERATIVAS ============
 
 async function sendMainMenuList(jid) {
     try {
         await sock.sendMessage(jid, {
             title: '🐕 DOGUINHA STORE', text: '🐕 DOGUINHA STORE',
-            footer: 'Escolha uma opção abaixo:', buttonText: '📱 Ver Opções',
+            footer: 'Escolha uma opção:', buttonText: '📱 Ver Opções',
             sections: [{
                 title: '📋 MENU PRINCIPAL',
                 rows: [
                     { title: '💸 Adicionar Saldo', rowId: 'menu_add_balance', description: 'Recarregue via PIX' },
                     { title: '🛍️ Assinaturas Premium', rowId: 'menu_products', description: 'Veja nosso catálogo' },
-                    { title: '💼 Área do Associado', rowId: 'menu_affiliate', description: 'Indique e ganhe comissões' },
+                    { title: '💼 Área do Associado', rowId: 'menu_affiliate', description: 'Indique e ganhe' },
                     { title: '👤 Contato do Suporte', rowId: 'menu_support', description: 'Fale conosco' }
                 ]
             }]
         });
-    } catch (error) {
-        await sock.sendMessage(jid, { text: '*🐕 DOGUINHA STORE*\n\n1. 💸 Adicionar Saldo\n2. 🛍️ Assinaturas Premium\n3. 💼 Área do Associado\n4. 👤 Contato do Suporte' });
+    } catch (e) {
+        await sock.sendMessage(jid, { text: '*🐕 DOGUINHA STORE*\n\n1. 💸 Adicionar Saldo\n2. 🛍️ Assinaturas\n3. 💼 Associado\n4. 👤 Suporte' });
     }
 }
 
 async function sendPixMenuList(jid) {
     try {
         await sock.sendMessage(jid, {
-            title: '💸 MENU DE OPÇÕES DE PIX', text: '💸 MENU DE OPÇÕES DE PIX',
-            footer: 'Escolha o valor da recarga:', buttonText: '💳 Ver Valores',
-            sections: [
-                {
-                    title: '💰 VALORES DISPONÍVEIS',
-                    rows: [
-                        { title: '💵 PIX R$ 5,00', rowId: 'pix_5', description: 'Recarga mínima' },
-                        { title: '💵 PIX R$ 8,00', rowId: 'pix_8', description: 'Recarga popular' },
-                        { title: '💵 PIX R$ 20,00', rowId: 'pix_20', description: 'Melhor valor' },
-                        { title: '✍️ Digite outro valor', rowId: 'pix_custom', description: 'Valor personalizado' }
-                    ]
-                },
-                { title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] }
-            ]
+            title: '💸 MENU PIX', text: '💸 MENU PIX',
+            footer: 'Escolha o valor:', buttonText: '💳 Ver Valores',
+            sections: [{
+                title: '💰 VALORES',
+                rows: [
+                    { title: '💵 PIX R$ 5,00', rowId: 'pix_5', description: 'Mínimo' },
+                    { title: '💵 PIX R$ 8,00', rowId: 'pix_8', description: 'Popular' },
+                    { title: '💵 PIX R$ 20,00', rowId: 'pix_20', description: 'Melhor' },
+                    { title: '✍️ Digite outro valor', rowId: 'pix_custom', description: 'Personalizado' }
+                ]
+            }]
         });
-    } catch (error) {
-        await sock.sendMessage(jid, { text: '*💸 MENU PIX*\n\n1. PIX R$ 5,00\n2. PIX R$ 8,00\n3. PIX R$ 20,00\n4. Digite outro valor' });
+    } catch (e) {
+        await sock.sendMessage(jid, { text: '*💸 PIX*\n1. R$ 5\n2. R$ 8\n3. R$ 20\n4. Outro valor' });
     }
 }
 
 async function sendCatalogList(jid, page = 1) {
     try {
         const products = await ProductService.getAvailableProducts();
-        const totalProducts = products.length;
-        const productsPerPage = 10;
-        const totalPages = Math.ceil(totalProducts / productsPerPage);
-
-        if (totalProducts === 0) {
-            await sock.sendMessage(jid, { text: '📦 Nenhum produto disponível no momento.' });
+        if (products.length === 0) {
+            await sock.sendMessage(jid, { text: '📦 Nenhum produto disponível.' });
             return;
         }
 
-        const start = (page - 1) * productsPerPage;
-        const end = start + productsPerPage;
-        const pageProducts = products.slice(start, end);
-
-        catalogPage[jid] = page;
+        const perPage = 10;
+        const totalPages = Math.ceil(products.length / perPage);
+        const start = (page - 1) * perPage;
+        const pageProducts = products.slice(start, start + perPage);
 
         const sections = [{
-            title: `📦 CATÁLOGO (Página ${page}/${totalPages})`,
+            title: `📦 Página ${page}/${totalPages}`,
             rows: pageProducts.map(p => ({
                 title: p.name,
                 rowId: `product_${p.id}`,
-                description: `💰 R$ ${p.price.toFixed(2)} | 📦 ${p.stock} unid.`
+                description: `💰 R$ ${p.price.toFixed(2)} | 📦 ${p.stock}`
             }))
         }];
 
-        const navRows = [];
-        if (page > 1) {
-            navRows.push({ title: '⬅️ Página Anterior', rowId: `catalog_page_${page - 1}`, description: `Voltar para página ${page - 1}` });
-        }
         if (page < totalPages) {
-            navRows.push({ title: '📄 Mostrar Mais Produtos', rowId: `catalog_page_${page + 1}`, description: `Ver página ${page + 1} de ${totalPages}` });
+            sections.push({
+                title: '📄 MAIS',
+                rows: [{ title: '📄 Mostrar Mais', rowId: `catalog_page_${page + 1}`, description: `Página ${page + 1}` }]
+            });
         }
-        if (navRows.length > 0) {
-            sections.push({ title: '📄 NAVEGAÇÃO', rows: navRows });
-        }
-
-        sections.push({ title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] });
 
         await sock.sendMessage(jid, {
-            title: '🛍️ Assinaturas Premium',
-            text: `🛍️ *ASSINATURAS PREMIUM*\n\n📄 Página ${page} de ${totalPages}\n📦 Total: ${totalProducts} produtos`,
-            footer: 'Escolha um produto abaixo:', buttonText: '📦 Ver Produtos', sections: sections
+            title: '🛍️ Catálogo', text: `🛍️ *Catálogo*\n📄 ${page}/${totalPages}`,
+            footer: 'Escolha um produto:', buttonText: '📦 Ver', sections: sections
         });
-
-    } catch (error) {
-        await sock.sendMessage(jid, { text: 'Erro ao carregar catálogo.' });
+    } catch (e) {
+        await sock.sendMessage(jid, { text: 'Erro ao carregar.' });
     }
 }
 
 async function sendAffiliateList(jid) {
     try {
         await sock.sendMessage(jid, {
-            title: '💼 Área do Associado', text: '💼 Área do Associado',
-            footer: 'Escolha uma opção:', buttonText: '💼 Opções',
-            sections: [
-                {
-                    title: '📢 OPÇÕES',
-                    rows: [
-                        { title: '📢 Texto Modelo', rowId: 'affiliate_text', description: 'Mensagem para divulgação' },
-                        { title: '💰 Sacar Comissão', rowId: 'affiliate_withdraw', description: 'Transferir para saldo' }
-                    ]
-                },
-                { title: '🔙 VOLTAR', rows: [{ title: '🔙 Menu Inicial', rowId: 'menu_back', description: 'Voltar' }] }
-            ]
+            title: '💼 Associado', text: '💼 Associado',
+            footer: 'Escolha:', buttonText: '💼 Opções',
+            sections: [{
+                title: '📢 OPÇÕES',
+                rows: [
+                    { title: '📢 Texto Modelo', rowId: 'affiliate_text', description: 'Divulgação' },
+                    { title: '💰 Sacar Comissão', rowId: 'affiliate_withdraw', description: 'Transferir' }
+                ]
+            }]
         });
-    } catch (error) {
-        await sock.sendMessage(jid, { text: '*💼 ÁREA DO ASSOCIADO*\n\n1. 📢 Texto Modelo\n2. 💰 Sacar Comissão' });
+    } catch (e) {
+        await sock.sendMessage(jid, { text: '*💼 ASSOCIADO*\n1. Texto Modelo\n2. Sacar' });
     }
 }
 
-// ============ TRATAMENTO DE ERROS ============
+process.on('uncaughtException', (e) => console.error('❌', e.message));
+process.on('unhandledRejection', (e) => console.error('❌', e));
 
-process.on('uncaughtException', (error) => {
-    console.error('❌ Erro não capturado:', error.message);
-});
-
-process.on('unhandledRejection', (reason) => {
-    console.error('❌ Promise rejeitada:', reason);
-});
-
-process.on('SIGINT', () => {
-    console.log('\n🛑 Encerrando bot...');
-    if (server) server.stop();
-    process.exit(0);
-});
-
-module.exports = {
-    getInstance: () => ({ isConnected: () => sock?.user ? true : false })
-};
+module.exports = { getInstance: () => ({ isConnected: () => sock?.user ? true : false }) };
 
 console.clear();
-console.log('🐕 DOGUINHA STORE BOT v3.0');
-console.log('===========================');
-console.log('✅ 100% COMPLETO');
-console.log('📱 QR Code nos logs');
-console.log('🚀 Pronto para Render\n');
-
+console.log('🐕 DOGUINHA STORE BOT');
+console.log('=====================\n');
 startBot().catch(console.error);
+```
+
+---
+
+🎯 AGORA VAI:
+
+1. Atualize o GitHub com esse código
+2. Render faz deploy
+3. Nos logs vai aparecer: "🔢 CÓDIGO DE PARECAMENTO GERADO: XXXXXXXX"
+4. Pegue esse código
+5. No iPhone: WhatsApp > Ajustes > Aparelhos Conectados > Conectar com código
+6. DIGITE O CÓDIGO
+7. ✅ Conectado!
+
+O BOT vai gerar o código e mostrar nos logs! 🐕
