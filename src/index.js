@@ -1,42 +1,3 @@
-🤔 ENTENDI AGORA!
-
-Se o WhatsApp do seu iPhone não mostra código nenhum quando você vai em "Conectar um aparelho", é porque:
-
----
-
-📱 NO iPHONE, O WHATSAPP TEM 2 TELAS:
-
-Tela 1: Scanner QR Code (padrão)
-
-· Abre a câmera para escanear QR Code
-· NÃO mostra código
-
-Tela 2: Conectar com código
-
-· Você precisa tocar no texto azul "Conectar com código"
-· Aí VOCÊ digita um código (não gera)
-
----
-
-🎯 ENTÃO SEU iPHONE:
-
-Se não aparece código quando toca em "Conectar com código", e sim pede para VOCÊ digitar, então o fluxo no iPhone é:
-
-iPhone pede que VOCÊ digite um código → O código tem que vir de fora
-
----
-
-✅ SOLUÇÃO FINAL:
-
-Vou fazer o BOT GERAR o código de pareamento e mostrar nos logs do Render. Aí você copia dos logs e digita no iPhone.
-
----
-
-📁 ATUALIZE O src/index.js NO GITHUB:
-
-Delete tudo e cole isso:
-
-```javascript
 require('dotenv').config();
 
 const {
@@ -561,18 +522,3 @@ console.clear();
 console.log('🐕 DOGUINHA STORE BOT');
 console.log('=====================\n');
 startBot().catch(console.error);
-```
-
----
-
-🎯 AGORA VAI:
-
-1. Atualize o GitHub com esse código
-2. Render faz deploy
-3. Nos logs vai aparecer: "🔢 CÓDIGO DE PARECAMENTO GERADO: XXXXXXXX"
-4. Pegue esse código
-5. No iPhone: WhatsApp > Ajustes > Aparelhos Conectados > Conectar com código
-6. DIGITE O CÓDIGO
-7. ✅ Conectado!
-
-O BOT vai gerar o código e mostrar nos logs! 🐕
