@@ -10,13 +10,11 @@ async function initializeDatabase() {
         
         const dbPath = process.env.DB_PATH || path.join(__dirname, '..', '..', 'database', 'store.db');
         
-        // Criar pasta database se não existir
         const dbDir = path.dirname(dbPath);
         if (!fs.existsSync(dbDir)) {
             fs.mkdirSync(dbDir, { recursive: true });
         }
         
-        // Carregar banco existente ou criar novo
         if (fs.existsSync(dbPath)) {
             const fileBuffer = fs.readFileSync(dbPath);
             db = new SQL.Database(fileBuffer);
@@ -24,7 +22,6 @@ async function initializeDatabase() {
             db = new SQL.Database();
         }
         
-        // Criar tabelas
         db.run(`
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -63,9 +60,7 @@ async function initializeDatabase() {
                 amount REAL,
                 status TEXT DEFAULT 'completed',
                 credentials TEXT,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (user_id) REFERENCES users(id),
-                FOREIGN KEY (product_id) REFERENCES products(id)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
         
@@ -80,8 +75,7 @@ async function initializeDatabase() {
                 status TEXT DEFAULT 'pending',
                 expires_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                paid_at DATETIME,
-                FOREIGN KEY (user_id) REFERENCES users(id)
+                paid_at DATETIME
             )
         `);
         
@@ -92,9 +86,7 @@ async function initializeDatabase() {
                 referred_id INTEGER,
                 commission_amount REAL DEFAULT 0,
                 status TEXT DEFAULT 'active',
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (referrer_id) REFERENCES users(id),
-                FOREIGN KEY (referred_id) REFERENCES users(id)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
         
@@ -116,9 +108,7 @@ async function initializeDatabase() {
             )
         `);
         
-        // Salvar no disco
         saveDatabase(dbPath);
-        
         console.log('✅ Banco de dados inicializado com sucesso!');
         return db;
         
@@ -130,6 +120,7 @@ async function initializeDatabase() {
 
 function saveDatabase(dbPath) {
     try {
+        if (!db) return;
         const data = db.export();
         const buffer = Buffer.from(data);
         const dbDir = path.dirname(dbPath);
@@ -144,7 +135,6 @@ function saveDatabase(dbPath) {
     }
 }
 
-// Auto-save a cada 5 minutos
 setInterval(() => {
     if (db) {
         const dbPath = process.env.DB_PATH || path.join(__dirname, '..', '..', 'database', 'store.db');
