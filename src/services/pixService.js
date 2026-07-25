@@ -1,5 +1,5 @@
 const axios = require('axios');
-const { db } = require('../database/init');
+const { getDatabase, saveDatabase } = require('../database/init');
 const config = require('../config/settings');
 const QRCode = require('qrcode');
 
@@ -11,7 +11,6 @@ class PixService {
 
     async generatePix(userId, amount) {
         try {
-            // Validar valor mínimo
             if (amount < config.pix.minValue) {
                 throw new Error(`Valor mínimo para PIX: R$ ${config.pix.minValue}`);
             }
@@ -19,7 +18,6 @@ class PixService {
             const expirationDate = new Date();
             expirationDate.setMinutes(expirationDate.getMinutes() + config.pix.expirationMinutes);
 
-            // Criar pagamento no Mercado Pago
             const paymentData = {
                 transaction_amount: amount,
                 description: `Recarga Doguinha Store - R$ ${amount.toFixed(2)}`,
@@ -44,16 +42,13 @@ class PixService {
             );
 
             const payment = response.data;
-            
-            // Gerar QR Code
             const qrCodeImage = await QRCode.toDataURL(
                 payment.point_of_interaction.transaction_data.qr_code
             );
 
-            // Salvar no banco de dados
             const pixId = payment.id.toString();
             const copyPaste = payment.point_of_interaction.transaction_data.qr_code;
-            
+
             await this.savePixRecharge(userId, amount, pixId, qrCodeImage, copyPaste, expirationDate);
 
             return {
@@ -72,17 +67,13 @@ class PixService {
     }
 
     async savePixRecharge(userId, amount, pixId, qrCode, copyPaste, expirationDate) {
-        return new Promise((resolve, reject) => {
-            db.run(
-                `INSERT INTO pix_recharges (user_id, amount, pix_id, qr_code, copy_paste, expires_at) 
-                 VALUES (?, ?, ?, ?, ?, ?)`,
-                [userId, amount, pixId, qrCode, copyPaste, expirationDate.toISOString()],
-                (err) => {
-                    if (err) reject(err);
-                    else resolve(true);
-                }
-            );
-        });
+        const db = getDatabase();
+        db.run(
+            `INSERT INTO pix_recharges (user_id, amount, pix_id, qr_code, copy_paste, expires_at) 
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [userId, amount, pixId, qrCode, copyPaste, expirationDate.toISOString()]
+        );
+        saveDatabase(process.env.DB_PATH);
     }
 
     async checkPaymentStatus(pixId) {
@@ -97,7 +88,7 @@ class PixService {
             );
 
             const payment = response.data;
-            
+
             if (payment.status === 'approved') {
                 await this.confirmPayment(pixId);
                 return { status: 'approved', payment };
@@ -114,47 +105,35 @@ class PixService {
     }
 
     async confirmPayment(pixId) {
-        return new Promise((resolve, reject) => {
-            db.get(
-                'SELECT * FROM pix_recharges WHERE pix_id = ? AND status = ?',
-                [pixId, 'pending'],
-                async (err, recharge) => {
-                    if (err) { reject(err); return; }
-                    if (!recharge) { resolve(false); return; }
+        const db = getDatabase();
+        
+        const stmt = db.prepare('SELECT * FROM pix_recharges WHERE pix_id = ? AND status = ?');
+        stmt.bind([pixId, 'pending']);
+        
+        let recharge = null;
+        if (stmt.step()) {
+            recharge = stmt.getAsObject();
+        }
+        stmt.free();
 
-                    db.run(
-                        'UPDATE pix_recharges SET status = ?, paid_at = CURRENT_TIMESTAMP WHERE pix_id = ?',
-                        ['completed', pixId],
-                        async (err) => {
-                            if (err) { reject(err); return; }
+        if (!recharge) return false;
 
-                            const UserService = require('./userService');
-                            await UserService.updateBalance(recharge.user_id, recharge.amount, 'credit');
+        db.run('UPDATE pix_recharges SET status = ?, paid_at = CURRENT_TIMESTAMP WHERE pix_id = ?', ['completed', pixId]);
+        saveDatabase(process.env.DB_PATH);
 
-                            const ReferralService = require('./referralService');
-                            await ReferralService.processReferralCommission(recharge.user_id, recharge.amount);
+        const UserService = require('./userService');
+        await UserService.updateBalance(recharge.user_id, recharge.amount, 'credit');
 
-                            resolve(true);
-                        }
-                    );
-                }
-            );
-        });
+        const ReferralService = require('./referralService');
+        await ReferralService.processReferralCommission(recharge.user_id, recharge.amount);
+
+        return true;
     }
 
     async checkExpiredPayments() {
-        return new Promise((resolve, reject) => {
-            db.run(
-                `UPDATE pix_recharges 
-                 SET status = 'expired' 
-                 WHERE status = 'pending' 
-                 AND expires_at < datetime('now')`,
-                (err) => {
-                    if (err) reject(err);
-                    else resolve(true);
-                }
-            );
-        });
+        const db = getDatabase();
+        db.run(`UPDATE pix_recharges SET status = 'expired' WHERE status = 'pending' AND expires_at < datetime('now')`);
+        saveDatabase(process.env.DB_PATH);
     }
 }
 
