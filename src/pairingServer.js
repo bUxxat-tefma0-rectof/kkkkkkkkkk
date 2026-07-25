@@ -12,7 +12,6 @@ class PairingServer {
         this.app.use(express.json());
         this.app.use(express.urlencoded({ extended: true }));
 
-        // Página para digitar o código
         this.app.get('/pair', (req, res) => {
             res.send(`
                 <!DOCTYPE html>
@@ -76,7 +75,7 @@ class PairingServer {
                     <div class="card">
                         <h1>🐕</h1>
                         <h2>Doguinha Store</h2>
-                        <p>📱 Digite o código de 8 dígitos que aparece no WhatsApp do seu iPhone</p>
+                        <p>📱 Digite o código de 8 dígitos do WhatsApp</p>
                         
                         <input type="text" id="code" placeholder="XXXXXXXX" maxlength="8" inputmode="numeric" pattern="[0-9]*" autocomplete="off">
                         <button onclick="sendCode()">🔐 Conectar</button>
@@ -124,7 +123,6 @@ class PairingServer {
             `);
         });
 
-        // Receber código
         this.app.post('/set-code', (req, res) => {
             const { code } = req.body;
             if (code && code.length === 8) {
@@ -143,7 +141,6 @@ class PairingServer {
     async waitForCode() {
         return new Promise((resolve) => {
             this.resolve = resolve;
-            // Timeout de 5 minutos
             setTimeout(() => {
                 if (this.resolve) {
                     this.resolve(null);
