@@ -49,4 +49,46 @@ class Validators {
     }
 
     static validatePixData(data) {
-        const errors
+        const errors = [];
+        
+        if (!this.isValidPixAmount(data.amount)) {
+            errors.push('Valor inválido');
+        }
+        
+        if (!data.userId) {
+            errors.push('Usuário não identificado');
+        }
+        
+        return errors;
+    }
+
+    static validateProductData(data) {
+        const errors = [];
+        
+        if (!this.isValidProductName(data.name)) {
+            errors.push('Nome do produto inválido');
+        }
+        
+        if (!this.isValidPrice(data.price)) {
+            errors.push('Preço inválido');
+        }
+        
+        if (!this.isValidStock(data.stock)) {
+            errors.push('Estoque inválido');
+        }
+        
+        return errors;
+    }
+
+    static validateUserData(data) {
+        const errors = [];
+        
+        if (!this.isValidPhoneNumber(data.phone_number)) {
+            errors.push('Número de telefone inválido');
+        }
+        
+        return errors;
+    }
+}
+
+module.exports = Validators;
