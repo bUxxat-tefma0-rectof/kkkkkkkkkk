@@ -3,9 +3,7 @@ services:
     name: doguinha-store-bot
     env: node
     region: oregon
-    buildCommand: |
-      npm install
-      mkdir -p auth database logs backups
+    buildCommand: npm install && mkdir -p auth database logs
     startCommand: node src/index.js
     healthCheckPath: /health
     envVars:
@@ -19,17 +17,12 @@ services:
         value: "@doguinhastore"
       - key: MP_ACCESS_TOKEN
         sync: false
-      - key: MP_PUBLIC_KEY
-        sync: false
       - key: COMMISSION_PERCENTAGE
         value: "10"
       - key: PIX_EXPIRATION
         value: "30"
-      - key: DB_PATH
-        value: "/opt/render/project/src/database/store.db"
       - key: PORT
         value: "3000"
-    autoDeploy: true
     disk:
       name: bot-data
       mountPath: /opt/render/project/src
