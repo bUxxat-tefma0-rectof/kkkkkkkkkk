@@ -54,10 +54,8 @@ async function startBot() {
                 console.log('🔄 Conectando ao WhatsApp...');
                 
                 if (!sock.authState.creds.registered) {
-                    console.log('\n📱 ====================================');
-                    console.log('   ABRA A PÁGINA DE PARECAMENTO:');
-                    console.log('   https://SEU_APP.onrender.com/pair');
-                    console.log('===================================\n');
+                    console.log('\n📱 ABRA A PÁGINA DE PARECAMENTO:');
+                    console.log('   https://kkkkkkkkkk-1.onrender.com/pair');
                     console.log('⏳ Aguardando código...\n');
                     
                     const code = await server.waitForPairingCode();
@@ -66,8 +64,7 @@ async function startBot() {
                         console.log('📝 Código recebido: ' + code);
                         try {
                             await sock.requestPairingCode(code);
-                            console.log('✅ Código enviado para o WhatsApp!');
-                            console.log('📱 Confirme no seu iPhone!\n');
+                            console.log('✅ Código enviado! Confirme no WhatsApp!\n');
                         } catch (e) {
                             console.log('❌ Código inválido: ' + e.message);
                             console.log('🔄 Recarregue a página e tente novamente.\n');
@@ -289,6 +286,6 @@ process.on('unhandledRejection', (e) => console.error('❌', e));
 
 module.exports = { getInstance: () => ({ isConnected: () => sock?.user ? true : false }) };
 
-console.log('🐕 DOGUINHA STORE BOT v5.0');
-console.log('===========================\n');
+console.log('🐕 DOGUINHA STORE BOT');
+console.log('=====================\n');
 startBot().catch(console.error);
