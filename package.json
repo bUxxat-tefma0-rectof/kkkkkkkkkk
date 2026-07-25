@@ -6,7 +6,6 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
-    "install": "npm install",
     "reset": "rm -rf auth && npm start"
   },
   "keywords": ["whatsapp", "bot", "pix", "assinaturas"],
