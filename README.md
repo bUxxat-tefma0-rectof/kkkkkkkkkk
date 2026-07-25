@@ -1,50 +1,29 @@
 # 🐕 DOGUINHA STORE BOT
 
-Bot de WhatsApp para venda de assinaturas premium com sistema PIX, indicações e painel administrativo.
+Bot de WhatsApp completo para venda de assinaturas premium.
 
-## 📋 FUNCIONALIDADES
+## ✨ FUNCIONALIDADES
 
-### 🟢 Mensagem Inicial
-- Boas-vindas automáticas
-- Reconhecimento de número
-- Exibição de saldo
-- Lista interativa com menu principal
+- 💸 **PIX automático** via Mercado Pago
+- 🛍️ **Catálogo de produtos** com estoque
+- 📱 **Listas interativas** nativas do WhatsApp
+- 💼 **Sistema de afiliados** com comissões
+- 📄 **PDF** com credenciais de acesso
+- 👑 **Painel administrativo** completo
+- 📢 **Transmissão** para todos os usuários
+- 🔐 **Pareamento por código** (sem QR Code)
 
-### 💸 Sistema PIX
-- Valores fixos: R$ 5, R$ 8, R$ 20
-- Valor personalizado
-- QR Code e código copia e cola
-- Confirmação automática via Mercado Pago
-- Expiração em 30 minutos
+## 🚀 DEPLOY NO RENDER (GRÁTIS)
 
-### 🛍️ Assinaturas Premium
-- Catálogo interativo
-- Múltiplos produtos
-- Controle de estoque
-- PDF com credenciais
+### 1️⃣ Criar conta
+- Acesse [Render.com](https://render.com)
+- Crie conta com GitHub
 
-### 💼 Área do Associado
-- Link e código de indicação
-- Comissões automáticas
-- Texto modelo para divulgação
-
-### 👑 Painel Administrativo
-- Gerenciar produtos
-- Relatórios de vendas
-- Transmissão em massa
-- Configurações completas
-
-## 🚀 INSTALAÇÃO
-
-### Pré-requisitos
-- Node.js 16+
-- npm
-- Conta Mercado Pago (para PIX)
-
-### Passos
-
-1. **Clone ou baixe os arquivos**
-
-2. **Instale as dependências:**
+### 2️⃣ Subir para o GitHub
 ```bash
-npm install
+git init
+git add .
+git commit -m "Doguinha Store Bot"
+git branch -M main
+git remote add origin https://github.com/SEU_USUARIO/doguinha-store-bot.git
+git push -u origin main
