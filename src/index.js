@@ -83,27 +83,37 @@ async function startBot() {
             if (connection === 'connecting') {
                 console.log('🔄 Conectando ao WhatsApp...');
                 
+                // Se não estiver registrado
                 if (!sock.authState.creds.registered) {
+                    console.log('\n📱 GERANDO CÓDIGO DE PARECAMENTO...\n');
+                    
+                    // Verificar se tem código no .env (código que VOCÊ vai digitar)
                     const pairingCode = process.env.PAIRING_CODE;
                     
-                    if (pairingCode && pairingCode.length === 8) {
-                        console.log(`\n📱 Código de pareamento: ${pairingCode}`);
-                        console.log('⏳ Conectando...\n');
+                    if (pairingCode && pairingCode.length >= 8) {
+                        console.log(`🔢 Usando código: ${pairingCode}`);
+                        console.log('⏳ Tentando conectar...\n');
                         
-                        try {
-                            await sock.requestPairingCode(pairingCode);
-                            console.log('✅ Código enviado! Confirme no WhatsApp do celular!\n');
-                        } catch (error) {
-                            console.log('\n❌ Código inválido ou expirado!');
-                            console.log('📝 Gere um novo código no WhatsApp e atualize PAIRING_CODE no Render.\n');
-                        }
+                        setTimeout(async () => {
+                            try {
+                                await sock.requestPairingCode(pairingCode);
+                                console.log('✅ Código enviado! Aguardando confirmação...\n');
+                            } catch (error) {
+                                console.log('❌ Erro:', error.message);
+                                console.log('📝 O código pode estar errado ou expirado.\n');
+                            }
+                        }, 2000);
                     } else {
+                        // Se não tem código, mostrar QR Code como alternativa
                         if (qr) {
                             const qrcode = require('qrcode-terminal');
-                            console.log('\n📱 QR Code (fallback):');
+                            console.log('\n📱 ALTERNATIVA - ESCANEIE O QR CODE:');
                             qrcode.generate(qr, { small: true });
                         }
-                        console.log('\n📝 Para usar código: Adicione PAIRING_CODE nas variáveis de ambiente do Render\n');
+                        console.log('\n📝 PARA USAR CÓDIGO:');
+                        console.log('1. Adicione PAIRING_CODE no Environment do Render');
+                        console.log('2. O código é o número de 8 dígitos que seu iPhone pede');
+                        console.log('3. Exemplo: PAIRING_CODE=12345678\n');
                     }
                 }
             }
