@@ -18,8 +18,7 @@ let userSelectedProduct = {};
 
 const app = express();
 app.get('/', (req, res) => res.json({ status: 'online' }));
-app.get('/health', (req, res) => res.json({ status: 'healthy' }));
-app.listen(process.env.PORT || 3000, () => console.log('🌐 Servidor online'));
+app.listen(process.env.PORT || 3000, () => {});
 
 async function startBot() {
     try {
@@ -28,7 +27,7 @@ async function startBot() {
             if (!fs.existsSync(p)) fs.mkdirSync(p, { recursive: true });
         });
         
-        console.log('📦 Banco de dados...');
+        console.log('📦 Banco...');
         await initializeDatabase();
         console.log('✅ Pronto!\n');
 
@@ -37,38 +36,27 @@ async function startBot() {
         console.log('📱 WA v' + version.join('.') + '\n');
 
         sock = makeWASocket({
-            version, logger, printQRInTerminal: false,
+            version, logger, printQRInTerminal: true,
             auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
             browser: ['Safari', 'Chrome', '1.0.0'],
         });
 
         sock.ev.on('creds.update', saveCreds);
 
-        sock.ev.on('connection.update', async (update) => {
-            const { connection, lastDisconnect } = update;
-
-            if (connection === 'connecting') {
-                if (!sock.authState.creds.registered) {
-                    const code = process.env.PAIRING_CODE;
-                    
-                    if (code && code.length === 8) {
-                        console.log('📝 Código: ' + code);
-                        try {
-                            await sock.requestPairingCode(code);
-                            console.log('✅ Enviado! Confirme no WhatsApp!\n');
-                        } catch (e) {
-                            console.log('❌ Erro: ' + e.message);
-                            console.log('⚠️ Gere um novo código no WhatsApp e atualize PAIRING_CODE no Render\n');
-                        }
-                    } else {
-                        console.log('\n⚠️ ADICIONE PAIRING_CODE NAS VARIÁVEIS DE AMBIENTE DO RENDER');
-                        console.log('📱 WhatsApp > Aparelhos Conectados > Conectar com código\n');
-                    }
-                }
+        sock.ev.on('connection.update', (update) => {
+            const { connection, lastDisconnect, qr } = update;
+            
+            if (qr) {
+                console.log('\n╔══════════════════════════════════╗');
+                console.log('║   ESCANEIE O QR CODE ABAIXO     ║');
+                console.log('╚══════════════════════════════════╝\n');
+                const qrcode = require('qrcode-terminal');
+                qrcode.generate(qr, { small: true });
+                console.log('\n⏳ Aguardando scan...\n');
             }
 
             if (connection === 'open') {
-                console.log('✅ BOT CONECTADO! ' + sock.user.id.split(':')[0] + '\n');
+                console.log('\n✅ BOT CONECTADO! ' + sock.user.id.split(':')[0] + '\n');
             }
 
             if (connection === 'close') {
@@ -138,55 +126,36 @@ async function startBot() {
             }
             else if (text === 'menu_support') {
                 const tel = await ConfigService.get('telegram_support');
-                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n' + tel + '\n\nAtendimento via Telegram' });
+                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n' + tel });
             }
             else if (text === 'pix_5') await processPix(jid, user, 5);
             else if (text === 'pix_8') await processPix(jid, user, 8);
             else if (text === 'pix_20') await processPix(jid, user, 20);
-            else if (text === 'pix_custom') await sock.sendMessage(jid, { text: 'Digite o valor (min R$ 5):' });
+            else if (text === 'pix_custom') await sock.sendMessage(jid, { text: 'Digite o valor:' });
             else if (!isNaN(text) && parseFloat(text) >= 5) await processPix(jid, user, parseFloat(text));
             else if (text.startsWith('product_')) {
                 const pid = parseInt(text.replace('product_', ''));
                 const product = await ProductService.getProductById(pid);
                 const bal = await UserService.getBalance(user.id);
-                if (!product) { await sock.sendMessage(jid, { text: 'Não encontrado' }); return; }
-                if (bal < product.price) { await sock.sendMessage(jid, { text: 'Saldo insuficiente! Falta R$ ' + (product.price - bal).toFixed(2) }); return; }
+                if (!product) return;
+                if (bal < product.price) { await sock.sendMessage(jid, { text: 'Saldo insuficiente!' }); return; }
                 userSelectedProduct[user.id] = pid;
                 await sock.sendMessage(jid, { text: '🛒 *' + product.name + '*\n💰 R$ ' + product.price.toFixed(2) + '\n\nDigite *confirmar* ou *cancelar*' });
             }
             else if (text.toLowerCase() === 'confirmar') {
                 const pid = userSelectedProduct[user.id];
-                if (!pid) { await sock.sendMessage(jid, { text: 'Nenhum produto!' }); return; }
+                if (!pid) return;
                 const result = await PurchaseService.processPurchase(user.id, pid);
                 if (result.success) {
-                    await sock.sendMessage(jid, { text: '✅ *COMPRADO!*\n\n📧 Login: ' + result.credentials.login + '\n🔑 Senha: ' + result.credentials.password });
+                    await sock.sendMessage(jid, { text: '✅ *COMPRADO!*\n📧 Login: ' + result.credentials.login + '\n🔑 Senha: ' + result.credentials.password });
                     delete userSelectedProduct[user.id];
-                } else {
-                    await sock.sendMessage(jid, { text: 'Erro: ' + result.message });
                 }
             }
             else if (text.toLowerCase() === 'cancelar') {
                 delete userSelectedProduct[user.id];
                 await sock.sendMessage(jid, { text: 'Cancelado.' });
             }
-            else if (isAdmin && text.startsWith('/addproduto')) {
-                const d = text.replace('/addproduto ', '').split('|').map(s => s.trim());
-                if (d.length >= 3) {
-                    await AdminService.addProduct({ name: d[0], price: parseFloat(d[1]), stock: parseInt(d[2]), category: d[3] || 'Geral' });
-                    await sock.sendMessage(jid, { text: '✅ Adicionado!' });
-                }
-            }
-            else if (isAdmin && text.startsWith('/broadcast')) {
-                const m = text.replace('/broadcast ', '');
-                const r = await AdminService.broadcastMessage(m, sock);
-                await sock.sendMessage(jid, { text: '✅ Enviado: ' + r.sent + '/' + r.total });
-            }
-            else if (isAdmin && text === 'admin') {
-                const stats = await AdminService.getDashboardStats();
-                await sock.sendMessage(jid, { text: '👑 *ADMIN*\n\nUsuários: ' + (stats.totalUsers || 0) + '\n💰 R$ ' + (stats.totalRevenue || 0).toFixed(2) });
-            }
         });
-
     } catch (e) {
         console.error('Erro:', e.message);
         setTimeout(startBot, 10000);
@@ -197,22 +166,7 @@ async function processPix(jid, user, amount) {
     try {
         await sock.sendMessage(jid, { text: '⏳ Gerando PIX...' });
         const pix = await PixService.generatePix(user.id, amount);
-        await sock.sendMessage(jid, { text: '💳 *PIX*\n\n💰 R$ ' + amount.toFixed(2) + '\n🆔 ' + pix.pixId + '\n\n📋 Código:\n' + pix.copyPaste + '\n\n✅ Confirmação automática!' });
-        
-        let c = 0;
-        const iv = setInterval(async () => {
-            c++;
-            try {
-                const r = await PixService.checkPaymentStatus(pix.pixId);
-                if (r.status === 'approved') {
-                    clearInterval(iv);
-                    const nb = await UserService.getBalance(user.id);
-                    await sock.sendMessage(jid, { text: '✅ *PAGO!*\n💰 Saldo: R$ ' + nb.toFixed(2) });
-                } else if (r.status === 'rejected' || c >= 180) {
-                    clearInterval(iv);
-                }
-            } catch (e) { if (c >= 180) clearInterval(iv); }
-        }, 10000);
+        await sock.sendMessage(jid, { text: '💳 *PIX*\n\n💰 R$ ' + amount.toFixed(2) + '\n🆔 ' + pix.pixId + '\n\n📋 Código:\n' + pix.copyPaste });
     } catch (e) {
         await sock.sendMessage(jid, { text: 'Erro: ' + e.message });
     }
