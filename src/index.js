@@ -71,7 +71,6 @@ async function startBot() {
             let text = '';
             if (msg.message.conversation) text = msg.message.conversation;
             else if (msg.message.extendedTextMessage?.text) text = msg.message.extendedTextMessage.text;
-            else if (msg.message.listResponseMessage?.singleSelectReply?.selectedRowId) text = msg.message.listResponseMessage.singleSelectReply.selectedRowId;
             if (!text) return;
             text = text.trim();
 
@@ -79,41 +78,23 @@ async function startBot() {
 
             const phone = jid.replace('@s.whatsapp.net', '');
             
-            if (['oi', 'ola', 'menu', 'inicio'].includes(text.toLowerCase())) {
-                await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 Saldo: R$ 0.00\n📧 @doguinhastore\n\nEscolha uma opção:' });
-                await sock.sendMessage(jid, {
-                    title: '🐕 DOGUINHA STORE', text: '🐕 DOGUINHA STORE', buttonText: '📱 Opções',
-                    sections: [{ title: '📋 MENU', rows: [
-                        { title: '💸 Adicionar Saldo', rowId: 'menu_add_balance' },
-                        { title: '🛍️ Assinaturas Premium', rowId: 'menu_products' },
-                        { title: '💼 Área do Associado', rowId: 'menu_affiliate' },
-                        { title: '👤 Suporte', rowId: 'menu_support' }
-                    ]}]
-                });
+            if (['oi', 'ola', 'menu', 'inicio', '1'].includes(text.toLowerCase())) {
+                await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 Saldo: R$ 0.00\n📧 @doguinhastore\n\n*MENU PRINCIPAL:*\n\n1️⃣ 💸 Adicionar Saldo\n2️⃣ 🛍️ Assinaturas Premium\n3️⃣ 💼 Área do Associado\n4️⃣ 👤 Contato do Suporte\n\n_Digite o número da opção_' });
             }
-            else if (text === 'menu_add_balance') {
-                await sock.sendMessage(jid, { text: '💸 *MENU PIX*\n\nEscolha o valor:' });
-                await sock.sendMessage(jid, {
-                    title: '💸 PIX', text: '💸 PIX', buttonText: '💳 Valores',
-                    sections: [{ title: '💰', rows: [
-                        { title: 'R$ 5,00', rowId: 'pix_5' },
-                        { title: 'R$ 8,00', rowId: 'pix_8' },
-                        { title: 'R$ 20,00', rowId: 'pix_20' },
-                        { title: 'Outro valor', rowId: 'pix_custom' }
-                    ]}]
-                });
+            else if (text === '2') {
+                await sock.sendMessage(jid, { text: '🛍️ *CATÁLOGO*\n\nEm breve produtos disponíveis!\n\n0️⃣ Voltar ao menu' });
             }
-            else if (text === 'menu_products') {
-                await sock.sendMessage(jid, { text: '🛍️ *CATÁLOGO*\n\nEm breve produtos disponíveis!' });
+            else if (text === '3') {
+                await sock.sendMessage(jid, { text: '💼 *ÁREA DO ASSOCIADO*\n\n🔗 Seu link: wa.me/554498691568\n📝 Código: DOG' + phone.slice(-4) + '\n💰 Comissão: 10%\n\n0️⃣ Voltar ao menu' });
             }
-            else if (text === 'menu_affiliate') {
-                await sock.sendMessage(jid, { text: '💼 *ASSOCIADO*\n\nCódigo: DOG' + phone.slice(-4) + '\nComissão: 10%' });
+            else if (text === '4') {
+                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n📱 Telegram: @doguinhastore\n\n⏰ Seg-Sex: 09h-18h\n\n0️⃣ Voltar ao menu' });
             }
-            else if (text === 'menu_support') {
-                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n@doguinhastore\n\nAtendimento via Telegram' });
+            else if (text === '0') {
+                await sock.sendMessage(jid, { text: '🐕 *MENU PRINCIPAL*\n\n1️⃣ 💸 Adicionar Saldo\n2️⃣ 🛍️ Assinaturas Premium\n3️⃣ 💼 Área do Associado\n4️⃣ 👤 Contato do Suporte\n\n_Digite o número da opção_' });
             }
             else {
-                await sock.sendMessage(jid, { text: 'Digite *oi* para ver o menu 🐕' });
+                await sock.sendMessage(jid, { text: '🐕 Digite *oi* ou *1* para ver o menu principal' });
             }
         });
 
