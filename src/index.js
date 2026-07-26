@@ -11,7 +11,6 @@ const ProductService = require('./services/productService');
 const PurchaseService = require('./services/purchaseService');
 const AdminService = require('./services/adminService');
 const ReferralService = require('./services/referralService');
-const ConfigService = require('./services/configService');
 const { initializeDatabase } = require('./database/init');
 const logger = pino({ level: 'silent' });
 let sock = null;
@@ -20,16 +19,13 @@ let currentQR = null;
 
 const app = express();
 app.get('/', (req, res) => res.json({ status: 'online' }));
-
-// ROTA PARA VER O QR CODE COMO IMAGEM
 app.get('/qr', (req, res) => {
     if (currentQR) {
-        res.send(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}img{width:300px;height:300px}</style></head><body><img src="${currentQR}"></body></html>`);
+        res.send('<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}img{width:300px;height:300px}</style></head><body><img src="' + currentQR + '"></body></html>');
     } else {
         res.send('QR Code não disponível. Aguarde...');
     }
 });
-
 app.listen(process.env.PORT || 3000, () => {});
 
 async function startBot() {
@@ -60,14 +56,8 @@ async function startBot() {
             
             if (qr) {
                 console.log('\n✅ QR CODE GERADO!');
-                console.log('📱 Abra no navegador:');
-                console.log('   https://kkkkkkkkkk-1.onrender.com/qr');
-                console.log('   Escaneie com o WhatsApp!\n');
-                
-                // Gerar QR Code como imagem
-                try {
-                    currentQR = await QRCode.toDataURL(qr);
-                } catch (e) {}
+                console.log('   https://kkkkkkkkkk-1.onrender.com/qr\n');
+                try { currentQR = await QRCode.toDataURL(qr); } catch (e) {}
             }
 
             if (connection === 'open') {
@@ -95,14 +85,14 @@ async function startBot() {
             if (!text) return;
             text = text.trim();
 
+            console.log('📩 Mensagem recebida: ' + text);
+
             const phone = jid.replace('@s.whatsapp.net', '');
             const user = await UserService.getOrCreateUser(phone);
-            const isAdmin = await AdminService.isAdmin(phone);
+            const bal = await UserService.getBalance(user.id);
 
             if (['oi', 'ola', 'menu', 'inicio'].includes(text.toLowerCase())) {
-                const bal = await UserService.getBalance(user.id);
-                const tel = await ConfigService.get('telegram_support');
-                await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 Saldo: R$ ' + bal.toFixed(2) + '\n📧 Suporte: ' + tel + '\n\nEscolha uma opção:' });
+                await sock.sendMessage(jid, { text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 Saldo: R$ ' + bal.toFixed(2) + '\n📧 Suporte: @doguinhastore\n\nEscolha uma opção:' });
                 await sock.sendMessage(jid, {
                     title: '🐕 DOGUINHA STORE', text: '🐕 DOGUINHA STORE', buttonText: '📱 Opções',
                     sections: [{ title: '📋 MENU', rows: [
@@ -126,7 +116,6 @@ async function startBot() {
                 });
             }
             else if (text === 'menu_products') {
-                const bal = await UserService.getBalance(user.id);
                 const products = await ProductService.getAvailableProducts();
                 await sock.sendMessage(jid, { text: '🛍️ *CATÁLOGO*\n💰 Saldo: R$ ' + bal.toFixed(2) });
                 if (products.length === 0) {
@@ -137,24 +126,21 @@ async function startBot() {
                 }
             }
             else if (text === 'menu_affiliate') {
-                const ref = await ReferralService.getReferralStats(user.id);
-                await sock.sendMessage(jid, { text: '💼 *ASSOCIADO*\n\nCódigo: ' + user.referral_code + '\nComissão: R$ ' + (user.commission_balance || 0).toFixed(2) + '\nIndicados: ' + (ref.total_referrals || 0) });
+                await sock.sendMessage(jid, { text: '💼 *ASSOCIADO*\n\nCódigo: ' + user.referral_code + '\nComissão: R$ ' + (user.commission_balance || 0).toFixed(2) });
             }
             else if (text === 'menu_support') {
-                const tel = await ConfigService.get('telegram_support');
-                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n' + tel });
+                await sock.sendMessage(jid, { text: '👤 *SUPORTE*\n\n@doguinhastore\n\nAtendimento via Telegram' });
             }
             else if (text === 'pix_5') await processPix(jid, user, 5);
             else if (text === 'pix_8') await processPix(jid, user, 8);
             else if (text === 'pix_20') await processPix(jid, user, 20);
-            else if (text === 'pix_custom') await sock.sendMessage(jid, { text: 'Digite o valor:' });
+            else if (text === 'pix_custom') await sock.sendMessage(jid, { text: 'Digite o valor (min R$ 5):' });
             else if (!isNaN(text) && parseFloat(text) >= 5) await processPix(jid, user, parseFloat(text));
             else if (text.startsWith('product_')) {
                 const pid = parseInt(text.replace('product_', ''));
                 const product = await ProductService.getProductById(pid);
-                const bal = await UserService.getBalance(user.id);
                 if (!product) return;
-                if (bal < product.price) { await sock.sendMessage(jid, { text: 'Saldo insuficiente!' }); return; }
+                if (bal < product.price) { await sock.sendMessage(jid, { text: 'Saldo insuficiente! Falta R$ ' + (product.price - bal).toFixed(2) }); return; }
                 userSelectedProduct[user.id] = pid;
                 await sock.sendMessage(jid, { text: '🛒 *' + product.name + '*\n💰 R$ ' + product.price.toFixed(2) + '\n\nDigite *confirmar* ou *cancelar*' });
             }
@@ -172,6 +158,7 @@ async function startBot() {
                 await sock.sendMessage(jid, { text: 'Cancelado.' });
             }
         });
+
     } catch (e) {
         console.error('Erro:', e.message);
         setTimeout(startBot, 10000);
@@ -188,6 +175,6 @@ async function processPix(jid, user, amount) {
     }
 }
 
-process.on('uncaughtException', (e) => console.error(e.message));
+process.on('uncaughtException', (e) => console.error('❌', e.message));
 console.log('🐕 DOGUINHA STORE BOT\n');
 startBot().catch(console.error);
