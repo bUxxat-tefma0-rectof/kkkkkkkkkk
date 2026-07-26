@@ -79,44 +79,26 @@ async function startBot() {
 
             const phone = jid.replace('@s.whatsapp.net', '');
             
-            // BOTÕES DE RESPOSTA RÁPIDA (QUICK REPLY)
-            const buttons = [
-                {
-                    name: 'quick_reply',
-                    buttonParamsJson: JSON.stringify({
-                        display_text: '💸 Adicionar Saldo',
-                        id: 'menu_add_balance'
-                    })
-                },
-                {
-                    name: 'quick_reply',
-                    buttonParamsJson: JSON.stringify({
-                        display_text: '🛍️ Assinaturas Premium',
-                        id: 'menu_products'
-                    })
-                },
-                {
-                    name: 'quick_reply',
-                    buttonParamsJson: JSON.stringify({
-                        display_text: '💼 Área do Associado',
-                        id: 'menu_affiliate'
-                    })
-                },
-                {
-                    name: 'quick_reply',
-                    buttonParamsJson: JSON.stringify({
-                        display_text: '👤 Contato do Suporte',
-                        id: 'menu_support'
-                    })
-                }
-            ];
-
-            await sock.sendMessage(jid, {
-                text: '🐕 *DOGUINHA STORE*\n\n📱 Número: ' + phone + '\n💰 Saldo: R$ 0.00\n📧 Suporte: @doguinhastore',
-                footer: 'Escolha uma opção abaixo:',
-                templateButtons: buttons,
-                viewOnce: true
-            });
+            // MENU BONITO E ELEGANTE
+            const menu = 
+                '╭═══════════════════╮\n' +
+                '│  🐕 DOGUINHA STORE  │\n' +
+                '╰═══════════════════╯\n\n' +
+                '👤 *Seus Dados*\n' +
+                '▸ 📱 Número: `' + phone + '`\n' +
+                '▸ 💰 Saldo: *R$ 0.00*\n' +
+                '▸ 📧 Suporte: @doguinhastore\n\n' +
+                '━━━━━━━━━━━━━━━━━━\n' +
+                '📋 *MENU PRINCIPAL*\n' +
+                '━━━━━━━━━━━━━━━━━━\n\n' +
+                '💸 • *1* - Adicionar Saldo\n' +
+                '🛍️ • *2* - Assinaturas Premium\n' +
+                '💼 • *3* - Área do Associado\n' +
+                '👤 • *4* - Contato do Suporte\n\n' +
+                '━━━━━━━━━━━━━━━━━━\n' +
+                '✨ _Digite o número da opção_';
+            
+            await sock.sendMessage(jid, { text: menu });
 
         });
 
