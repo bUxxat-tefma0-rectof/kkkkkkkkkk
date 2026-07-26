@@ -79,15 +79,42 @@ async function startBot() {
 
             const phone = jid.replace('@s.whatsapp.net', '');
             
-            // QUALQUER MENSAGEM ENVIA A ENQUETE
+            // BOTÕES DE RESPOSTA RÁPIDA (QUICK REPLY)
+            const buttons = [
+                {
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: '💸 Adicionar Saldo',
+                        id: 'menu_add_balance'
+                    })
+                },
+                {
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: '🛍️ Assinaturas Premium',
+                        id: 'menu_products'
+                    })
+                },
+                {
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: '💼 Área do Associado',
+                        id: 'menu_affiliate'
+                    })
+                },
+                {
+                    name: 'quick_reply',
+                    buttonParamsJson: JSON.stringify({
+                        display_text: '👤 Contato do Suporte',
+                        id: 'menu_support'
+                    })
+                }
+            ];
+
             await sock.sendMessage(jid, {
-                text: '🐕 *DOGUINHA STORE*\n\n📱 Número: ' + phone + '\n💰 Saldo: R$ 0.00',
-                footer: 'Escolha uma opção:',
-                buttons: [
-                    { buttonId: 'id1', buttonText: { displayText: '💸 Adicionar Saldo' }, type: 1 },
-                    { buttonId: 'id2', buttonText: { displayText: '🛍️ Assinaturas' }, type: 1 },
-                    { buttonId: 'id3', buttonText: { displayText: '💼 Associado' }, type: 1 }
-                ],
+                text: '🐕 *DOGUINHA STORE*\n\n📱 Número: ' + phone + '\n💰 Saldo: R$ 0.00\n📧 Suporte: @doguinhastore',
+                footer: 'Escolha uma opção abaixo:',
+                templateButtons: buttons,
                 viewOnce: true
             });
 
