@@ -4,6 +4,7 @@ const pino = require('pino');
 const fs = require('fs');
 const path = require('path');
 const express = require('express');
+const QRCode = require('qrcode');
 const UserService = require('./services/userService');
 const PixService = require('./services/pixService');
 const ProductService = require('./services/productService');
@@ -15,9 +16,20 @@ const { initializeDatabase } = require('./database/init');
 const logger = pino({ level: 'silent' });
 let sock = null;
 let userSelectedProduct = {};
+let currentQR = null;
 
 const app = express();
 app.get('/', (req, res) => res.json({ status: 'online' }));
+
+// ROTA PARA VER O QR CODE COMO IMAGEM
+app.get('/qr', (req, res) => {
+    if (currentQR) {
+        res.send(`<html><head><meta name="viewport" content="width=device-width,initial-scale=1.0"><style>body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;margin:0}img{width:300px;height:300px}</style></head><body><img src="${currentQR}"></body></html>`);
+    } else {
+        res.send('QR Code não disponível. Aguarde...');
+    }
+});
+
 app.listen(process.env.PORT || 3000, () => {});
 
 async function startBot() {
@@ -36,27 +48,31 @@ async function startBot() {
         console.log('📱 WA v' + version.join('.') + '\n');
 
         sock = makeWASocket({
-            version, logger, printQRInTerminal: true,
+            version, logger, printQRInTerminal: false,
             auth: { creds: state.creds, keys: makeCacheableSignalKeyStore(state.keys, logger) },
             browser: ['Safari', 'Chrome', '1.0.0'],
         });
 
         sock.ev.on('creds.update', saveCreds);
 
-        sock.ev.on('connection.update', (update) => {
+        sock.ev.on('connection.update', async (update) => {
             const { connection, lastDisconnect, qr } = update;
             
             if (qr) {
-                console.log('\n╔══════════════════════════════════╗');
-                console.log('║   ESCANEIE O QR CODE ABAIXO     ║');
-                console.log('╚══════════════════════════════════╝\n');
-                const qrcode = require('qrcode-terminal');
-                qrcode.generate(qr, { small: true });
-                console.log('\n⏳ Aguardando scan...\n');
+                console.log('\n✅ QR CODE GERADO!');
+                console.log('📱 Abra no navegador:');
+                console.log('   https://kkkkkkkkkk-1.onrender.com/qr');
+                console.log('   Escaneie com o WhatsApp!\n');
+                
+                // Gerar QR Code como imagem
+                try {
+                    currentQR = await QRCode.toDataURL(qr);
+                } catch (e) {}
             }
 
             if (connection === 'open') {
                 console.log('\n✅ BOT CONECTADO! ' + sock.user.id.split(':')[0] + '\n');
+                currentQR = null;
             }
 
             if (connection === 'close') {
