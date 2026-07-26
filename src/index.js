@@ -79,43 +79,18 @@ async function startBot() {
 
             const phone = jid.replace('@s.whatsapp.net', '');
             
-            if (['oi', 'ola', 'menu', 'inicio', 'menu_principal'].includes(text.toLowerCase())) {
-                await sock.sendMessage(jid, {
-                    text: '🐕 *DOGUINHA STORE*\n\n📱 ' + phone + '\n💰 Saldo: R$ 0.00\n📧 @doguinhastore',
-                    footer: 'Escolha uma opção abaixo:',
-                    buttons: [
-                        { buttonId: 'menu_add_balance', buttonText: { displayText: '💸 Adicionar Saldo' }, type: 1 },
-                        { buttonId: 'menu_products', buttonText: { displayText: '🛍️ Assinaturas Premium' }, type: 1 },
-                        { buttonId: 'menu_affiliate', buttonText: { displayText: '💼 Área do Associado' }, type: 1 }
-                    ],
-                    headerType: 1
-                });
-            }
-            else if (text === 'menu_add_balance') {
-                await sock.sendMessage(jid, {
-                    text: '💸 *MENU PIX*\n\nEscolha o valor da recarga:',
-                    footer: 'Selecione uma opção:',
-                    buttons: [
-                        { buttonId: 'pix_5', buttonText: { displayText: 'R$ 5,00' }, type: 1 },
-                        { buttonId: 'pix_8', buttonText: { displayText: 'R$ 8,00' }, type: 1 },
-                        { buttonId: 'pix_20', buttonText: { displayText: 'R$ 20,00' }, type: 1 }
-                    ],
-                    headerType: 1
-                });
-            }
-            else if (text === 'menu_products') {
-                await sock.sendMessage(jid, { text: '🛍️ *CATÁLOGO*\n\nEm breve produtos disponíveis!' });
-            }
-            else if (text === 'menu_affiliate') {
-                await sock.sendMessage(jid, { text: '💼 *ÁREA DO ASSOCIADO*\n\n🔗 Seu link: wa.me/554498691568\n📝 Código: DOG' + phone.slice(-4) + '\n💰 Comissão: 10%' });
-            }
-            else if (['pix_5', 'pix_8', 'pix_20'].includes(text)) {
-                const valor = text === 'pix_5' ? 5 : text === 'pix_8' ? 8 : 20;
-                await sock.sendMessage(jid, { text: '⏳ Gerando PIX de R$ ' + valor.toFixed(2) + '...\n\nEm breve!' });
-            }
-            else {
-                await sock.sendMessage(jid, { text: '🐕 Digite *oi* para ver o menu principal' });
-            }
+            // QUALQUER MENSAGEM ENVIA A ENQUETE
+            await sock.sendMessage(jid, {
+                text: '🐕 *DOGUINHA STORE*\n\n📱 Número: ' + phone + '\n💰 Saldo: R$ 0.00',
+                footer: 'Escolha uma opção:',
+                buttons: [
+                    { buttonId: 'id1', buttonText: { displayText: '💸 Adicionar Saldo' }, type: 1 },
+                    { buttonId: 'id2', buttonText: { displayText: '🛍️ Assinaturas' }, type: 1 },
+                    { buttonId: 'id3', buttonText: { displayText: '💼 Associado' }, type: 1 }
+                ],
+                viewOnce: true
+            });
+
         });
 
     } catch (e) {
